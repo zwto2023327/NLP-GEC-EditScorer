@@ -18,17 +18,19 @@ from ranking.score_utils import extract_edits, score_corrections, predict_by_sta
 from utils.data_utils import read_test_file
 from utils.utils import make_offsets, apply_simple_edit
 
+os.environ['CURL_CA_BUNDLE'] = ''
 argument_parser = ArgumentParser()
-argument_parser.add_argument("-m", "--model", default="roberta-base")
-argument_parser.add_argument("-i", "--input_file", default="data/english/dev.bea.m2")
+#base large 要与checkpoint对应
+argument_parser.add_argument("-m", "--model", default="/home/amax/data/wzx/VSR/NLP-GEC/NLP-GEC-EditScorer/roberta-large")
+argument_parser.add_argument("-i", "--input_file", default="/home/amax/data/wzx/VSR/NLP-GEC/data/wi+locness/m2/ABCN.dev.gold.bea19.m2")
 argument_parser.add_argument("-r", "--raw", action="store_true")
 argument_parser.add_argument("-s", "--stages", default=8, type=int)
-argument_parser.add_argument("-v", "--input_variant_file", default="data/english_reranking/dev_1.bea.variants")
+argument_parser.add_argument("-v", "--input_variant_file", default="/home/amax/data/wzx/VSR/NLP-GEC/data/bea_reranking/gector_variants/bea.dev.variants")
 argument_parser.add_argument("-n", "--max_sents", default=None, type=int)
 argument_parser.add_argument("-l", "--language", default=None)
-argument_parser.add_argument("-c", "--checkpoint_dir", type=str, required=True)
-argument_parser.add_argument("-C", "--checkpoint_name", type=str, default="checkpoint.pt")
-argument_parser.add_argument("-o", "--output_file", default=None, type=str)
+argument_parser.add_argument("-c", "--checkpoint_dir", type=str, default="/home/amax/data/wzx/VSR/NLP-GEC/NLP-GEC-EditScorer/checkpoints/checkpoints/clang_large_ft2-gector")
+argument_parser.add_argument("-C", "--checkpoint_name", type=str, default="checkpoint_2.pt")
+argument_parser.add_argument("-o", "--output_file", default="bea_output", type=str)
 argument_parser.add_argument("-O", "--output_dir", default="dump/reranking", type=str)
 argument_parser.add_argument("--output_by_stages", action="store_true")
 argument_parser.add_argument("-b", "--batch_size", default=4000, type=int)
@@ -36,7 +38,7 @@ argument_parser.add_argument("--threshold", default=0.5, type=float)
 argument_parser.add_argument("-T", "--stage_thresholds", default=None, type=float, nargs="+")
 argument_parser.add_argument("-D", dest="use_default", action="store_false")
 argument_parser.add_argument("-U", dest="use_position", action="store_false")
-argument_parser.add_argument("-a", "--alpha_source", default=None, type=float, nargs="+")
+argument_parser.add_argument("-a", "--alpha_source", default=0.1, type=float, nargs="+")
 argument_parser.add_argument("-A", "--threshold_alpha", default=1.0, type=float)
 argument_parser.add_argument("--max_source_score", default=5.0, type=float)
 argument_parser.add_argument("--annotator_index", default=0, type=int)
@@ -89,7 +91,8 @@ if __name__ == "__main__":
     os.makedirs(outdir, exist_ok=True)
     if args.alpha_source is None:
         args.alpha_source = []
-    args.alpha_source = [0.0] + sorted(set(args.alpha_source))
+    #args.alpha_source = [0.0] + sorted(set(args.alpha_source))
+    args.alpha_source = [0.1]
     for alpha in args.alpha_source:
         print(f"Source model weights={alpha:.2f}")
         for threshold in args.stage_thresholds:

@@ -1,5 +1,5 @@
 from itertools import chain
-
+from transformers import RobertaTokenizer, RobertaModel
 import numpy as np
 import torch
 from torch import nn, Tensor
@@ -68,6 +68,7 @@ class VariantScoringModel(nn.Module):
         super(VariantScoringModel, self).__init__()
         if isinstance(model, str):
             model = AutoModel.from_pretrained(model).to(device)
+            #model = AutoModel.from_pretrained('/home/amax/data/wzx/VSR/NLP-GEC/NLP-GEC-EditScorer/roberta-base').to(device)
         self.model = model
         self.model_field = model_field
         self.mlp_hidden = mlp_hidden or []
