@@ -12,7 +12,7 @@ def extract_labels(model_output, batch):
         })
     # print(len(y_pred), len(y_true))
     return y_pred, y_true
-
+#todo pos_threshold是阈值？
 def probs_to_labels(probs, default_index, threshold=0.5):
     default_prob = probs[default_index] if default_index is not None else 0.0
     pos_threshold = max(threshold, default_prob)

@@ -50,7 +50,7 @@ def update_metrics(metrics, batch_output, batch, mask=None,
 
 
 class ModelTrainer:
-    
+    #todo 多GPU 训练策略
     def __init__(self, epochs=1, initial_epoch=0,
                  checkpoint_dir=None, checkpoint_name="checkpoint.pt", save_all_checkpoints=False,
                  eval_steps=None, evaluate_after=False, validate_metric="accuracy", less_is_better=False):
@@ -66,7 +66,7 @@ class ModelTrainer:
         self.evaluate_after = evaluate_after
         self.validate_metric = validate_metric
         self.less_is_better = less_is_better
-
+    #todo 增加变换和多GPU支持
     def do_epoch(self, model, dataloader, mode="validate", epoch=0, eval_steps=None,
                  answer_field="labels", y_field="y",
                  extract_func=None, metric_func=None, aggregate_func=None, display_func=None,
@@ -105,6 +105,7 @@ class ModelTrainer:
                 progress_bar.update(batch_size if count_mode == "sample" else 1)
                 postfix["lr"] = f"{model.scheduler.get_last_lr()[0]:.2e}"
                 progress_bar.set_postfix(postfix)
+                #todo eval策略修改
                 if mode == "train" and eval_steps is not None:
                     evaluation_step = progress_bar.n // eval_steps
                     if evaluation_step != prev_evaluation_step:
@@ -117,6 +118,7 @@ class ModelTrainer:
         self.eval_func = partial(
             self.evaluate_and_save_model, dev_data=dev_data, total=dev_total,  count_mode=count_mode, **kwargs
         )
+        #todo 添加变换机制
         for epoch in range(self.initial_epoch, self.epochs):
             train_metrics = self.do_epoch(
                 model, train_data, mode="train", epoch=epoch, total=total,

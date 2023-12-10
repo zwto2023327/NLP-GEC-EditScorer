@@ -56,7 +56,6 @@ def bce_group_loss(probs, labels, alpha_pos=1.0, loss_by_class=True):
 
 
 class VariantScoringModel(nn.Module):
-
     def __init__(self, model, model_field="last_hidden_state", mlp_hidden=None, mlp_dropout=0.0,
                  use_position=True, position_mode="first", use_origin=False, concat_mode=None,
                  loss_by_class=False, average_loss_for_batch=True,
@@ -67,6 +66,7 @@ class VariantScoringModel(nn.Module):
                  device="cuda", **kwargs):
         super(VariantScoringModel, self).__init__()
         if isinstance(model, str):
+            #todo 多GPU
             model = AutoModel.from_pretrained(model).to(device)
             #model = AutoModel.from_pretrained('/home/amax/data/wzx/VSR/NLP-GEC/NLP-GEC-EditScorer/roberta-base').to(device)
         self.model = model
@@ -94,9 +94,11 @@ class VariantScoringModel(nn.Module):
         self.device = device
         self.batches_per_update = batches_per_update
         self._batches_accumulated = 0
+        #todo 多GPU支持
         if self.device is not None:
             self.to(self.device)
         optimizer_args = {key[10:]: value for key, value in kwargs.items() if key[:10] == "optimizer_"}
+        self.notebook_args = {key: value for key, value in kwargs.items() if key[:5] == "note_"}
         self.build_optimizer(**optimizer_args)
         self.scheduler = get_scheduler(scheduler, optimizer=self.optimizer, num_warmup_steps=warmup)
     
@@ -157,7 +159,7 @@ class VariantScoringModel(nn.Module):
             states = layer(states)
         logits = self.proj_layer(states)[:,0]
         return torch.sigmoid(logits) if return_sigmoid else logits
-
+    #todo loss
     def train_on_batch(self, batch, mask=None):
         self.train()
         if self._batches_accumulated == 0:
@@ -177,8 +179,9 @@ class VariantScoringModel(nn.Module):
         self.eval()
         with torch.no_grad():
             return self._validate(**batch, mask=mask)
-
+    #todo loss计算
     def _validate(self, input_ids, label, soft_pairs, hard_pairs, no_change_pairs=None, mask=None, **kwargs):
+        #todo 多GPU
         if self.device is not None:
             label = label.to(self.device)
         logits = self(input_ids, return_sigmoid=False, **kwargs) #   self.forward(x) = self.__call__(x)
@@ -219,6 +222,7 @@ class VariantScoringModel(nn.Module):
             answer.update({
                 "loss": loss, "soft_loss": soft_loss, "hard_loss": hard_loss, "no_change_loss": no_change_loss
             })
+
         return answer
     
     

@@ -71,7 +71,16 @@ argument_parser.add_argument("-s", "--seed", default=117, type=int)
 argument_parser.add_argument("--threshold", default=0.5, type=float)
 argument_parser.add_argument("-o", "--outfile", default=None)
 argument_parser.add_argument("--min_diff", default=None, type=float)
+#错题本训练参数
+argument_parser.add_argument("--note_correct_n", default=1, type=int)
+argument_parser.add_argument("--note_error_n", default=3, type=int)
+argument_parser.add_argument("--note_all_n", default=1, type=int)
+argument_parser.add_argument("--note_keep_n", default=1, type=int)
+argument_parser.add_argument("--note_correct", default=0.8, type=float)
+argument_parser.add_argument("--note_error", default=0.8, type=float)
+argument_parser.add_argument("--note_use", default=True, type=bool)
 
+NOTEBOOK_KEYS = ["note_use", "note_correct_n", "note_error_n", "note_all_n", "note_keep_n", "note_correct", "note_error"]
 MODEL_KEYS = ["position_mode", "loss_by_class", "alpha_pos", "alpha_soft", "alpha_hard", "alpha_no_change",
               "alpha_contrastive", "average_loss_for_batch", "use_origin", "concat_mode", "mlp_dropout"]
 SAVE_KEYS = ["mlp_hidden", "epochs"]
@@ -89,10 +98,12 @@ if __name__ == "__main__":
     print("Loading data...")
     if args.processed_dataset:
         if isinstance(args.train_file, (list, tuple)):
-            args.train_file = args.train_file[0]
+            args.train_file = args.train_file[0]#train_file如果是一个集合只取第一个
+        #todo 如果有超过训练集的数据，需要添加
         train_dataset, train_data = load_ranking_dataset(args.train_file)
         dev_dataset, dev_data = load_ranking_dataset(args.test_file)
     else:
+        #todo 如果有超过训练集的数据，需要添加
         train_dataset, train_data = prepare_dataset(
             args.train_file, model=args.model, only_generated=args.only_generated,
             only_with_positive=args.only_with_positive, n=args.max_sents, **dataset_args
@@ -112,6 +123,7 @@ if __name__ == "__main__":
         if args.only_process_dataset:
             sys.exit()
     print("Train dataset length before length filtering", len(train_dataset))
+
     short_indexes = [i for i, elem in enumerate(train_dataset)
                      if elem["data"] is not None and len(elem["data"][0]["input_ids"]) <= args.max_length]
     train_dataset = [train_dataset[i] for i in short_indexes]
@@ -119,8 +131,10 @@ if __name__ == "__main__":
     print("Train dataset length after length filtering", len(train_dataset))
     # assert all(len(elem["data"][0]["input_ids"]) <= args.max_length for elem in dev_dataset)
     print("Initializing the model...")
+    #提取参数
     model_args = {key: getattr(args, key) for key in MODEL_KEYS}
     optimizer_args = {key: getattr(args, key) for key in OPTIMIZER_KEYS}
+    notebook_args = {key: getattr(args, key) for key in NOTEBOOK_KEYS}
     if args.attention_layers > 0:
         model_args["n_attention_layers"] = args.attention_layers
         model_args["residual"] = args.residual
@@ -134,11 +148,16 @@ if __name__ == "__main__":
         cls = VariantScoringModelWithCrossAttention
     else:
         cls = VariantScoringModel
+    if args.note_use:
+        #阶段顺序
+        notebook_args["list"] = ["all", "error", "correct", "keep"]
+    #todo 多GPU
     model = cls(model=args.model, mlp_hidden=args.mlp_hidden, device="cuda",
-                use_position=args.use_position, **model_args, **optimizer_args)
+                use_position=args.use_position, **model_args, **optimizer_args, **notebook_args)
     if args.load is not None:
         model.load_state_dict(torch.load(args.load), False)
     torch.manual_seed(args.seed)
+    #todo 无需修改数据 多GPU
     train_dataloader = prepare_dataloader(train_dataset, batch_size=args.batch_size, device=model.device)
     dev_dataloader = prepare_dataloader(dev_dataset, batch_size=args.batch_size, device=model.device)
     if args.recall_estimate is not None:
@@ -147,6 +166,7 @@ if __name__ == "__main__":
         validate_metric = "F_estimate"
     else:
         metrics_to_display, percent_metrics, validate_metric = None, None, "F"
+    #todo 相关函数修改
     metric_args = {
         "y_field": "label",
         "extract_func": extract_labels, "metric_func": item_score_func,
@@ -157,6 +177,7 @@ if __name__ == "__main__":
             only_main_loss=bool(args.alpha_contrastive == 0.0)
         )
     }
+    #todo 增加无需修改类别
     progress_bar_args = {
         "total": len(train_dataset), "dev_total": len(dev_dataset), "count_mode": "sample"
     }
@@ -182,6 +203,7 @@ if __name__ == "__main__":
         fmetrics = open(os.path.join(args.checkpoint_dir, "metrics.jsonl"), "w", encoding="utf8")
     else:
         fmetrics = None
+    #todo 阈值
     for threshold in [0.5, 0.6, 0.7, 0.8, 0.9]:
         metrics = evaluate_predictions(predictions, dev_dataset, from_labels=False, threshold=threshold)
         print(threshold, metrics)
