@@ -3,6 +3,7 @@ from common.metrics import aggregate_binary_sequence_metrics
 
 def extract_labels(model_output, batch):
     offsets = batch["offset"]
+    #y_pred: [[0.6414976119995117, 0.10424409061670303, 0.01886623166501522, 0.3386338949203491]]
     y_pred = [model_output["probs"][start:end].tolist() for start, end in zip(offsets[:-1], offsets[1:])]
     y_true = []
     for index, start, end, default_index in zip(batch["indexes"], offsets[:-1], offsets[1:], batch["default"]):
@@ -12,14 +13,15 @@ def extract_labels(model_output, batch):
         })
     # print(len(y_pred), len(y_true))
     return y_pred, y_true
-#todo pos_threshold是阈值？
+
 def probs_to_labels(probs, default_index, threshold=0.5):
     default_prob = probs[default_index] if default_index is not None else 0.0
     pos_threshold = max(threshold, default_prob)
     return [int(prob >= (pos_threshold if i != default_index else threshold)) for i, prob in enumerate(probs)]
 
-def item_score_func(y_true, y_pred, threshold=0.5, from_labels=False):
+def item_score_func(y_true, y_pred, threshold=0.5, from_labels=False, note_use=False):
     TP, FN, FP, correct = 0, 0, 0, 0
+    error_list = []
     if not from_labels:
         y_pred = probs_to_labels(y_pred, y_true["default"], threshold)
     for index, (label, pred_label) in enumerate(zip(y_true["label"], y_pred)):
@@ -30,10 +32,15 @@ def item_score_func(y_true, y_pred, threshold=0.5, from_labels=False):
             elif pred_label == 1:
                 FP += 1
         correct += is_correct
+        # 结果添加正确和不正确的位置
+        error_list.append(is_correct)
     all_correct = int(correct == len(y_pred))
-    return {"TP": TP, "FP": FP, "FN": FN, "total": len(y_pred), "correct": correct,
-            "seq_correct": all_correct, "seq_total": 1}
-
+    if note_use:
+        return {"TP": TP, "FP": FP, "FN": FN, "total": len(y_pred), "correct": correct,
+            "seq_correct": all_correct, "seq_total": 1, "error_list": error_list}
+    else:
+        return {"TP": TP, "FP": FP, "FN": FN, "total": len(y_pred), "correct": correct,
+                "seq_correct": all_correct, "seq_total": 1}
 
 def evaluate_predictions(predictions, dataset, threshold=0.5, from_labels=True):
     metrics = dict()

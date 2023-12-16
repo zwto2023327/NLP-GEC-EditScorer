@@ -54,10 +54,10 @@ argument_parser.add_argument("-P", "--alpha_pos", default=1.0, type=float)
 argument_parser.add_argument("-S", "--alpha_soft", default=0.0, type=float)
 argument_parser.add_argument("-H", "--alpha_hard", default=0.0, type=float)
 argument_parser.add_argument("-N", "--alpha_no_change", default=0.0, type=float)
-argument_parser.add_argument("-c", "--checkpoint_dir", default="/home/amax/data/wzx/VSR/NLP-GEC/NLP-GEC-EditScorer/checkpoints/checkpoints/clang_large_ft2-gector")
+argument_parser.add_argument("-c", "--checkpoint_dir", default="/home/amax/data/wzx/VSR/NLP-GEC/NLP-GEC-EditScorer/checkpoints/")
 argument_parser.add_argument("--save_all_checkpoints", action="store_true")
 argument_parser.add_argument("-b", "--batch_size", default=64, type=int)
-argument_parser.add_argument("-e", "--epochs", default=3, type=int)
+argument_parser.add_argument("-e", "--epochs", default=24, type=int)
 argument_parser.add_argument("--initial_epoch", default=0, type=int)
 argument_parser.add_argument("--eval_every_n_steps", dest="eval_steps", default=None, type=int)
 argument_parser.add_argument("-E", "--recall_estimate", default=0.4, type=float)
@@ -75,7 +75,7 @@ argument_parser.add_argument("--min_diff", default=None, type=float)
 argument_parser.add_argument("--note_correct_n", default=1, type=int)
 argument_parser.add_argument("--note_error_n", default=3, type=int)
 argument_parser.add_argument("--note_all_n", default=1, type=int)
-argument_parser.add_argument("--note_keep_n", default=1, type=int)
+argument_parser.add_argument("--note_keep_n", default=0, type=int)
 argument_parser.add_argument("--note_correct", default=0.8, type=float)
 argument_parser.add_argument("--note_error", default=0.8, type=float)
 argument_parser.add_argument("--note_use", default=True, type=bool)
@@ -150,7 +150,7 @@ if __name__ == "__main__":
         cls = VariantScoringModel
     if args.note_use:
         #阶段顺序
-        notebook_args["list"] = ["all", "error", "correct", "keep"]
+        notebook_args["list"] = ["all", "error", "correct"]#todo 支持"keep"
     #todo 多GPU
     model = cls(model=args.model, mlp_hidden=args.mlp_hidden, device="cuda",
                 use_position=args.use_position, **model_args, **optimizer_args, **notebook_args)
@@ -166,7 +166,6 @@ if __name__ == "__main__":
         validate_metric = "F_estimate"
     else:
         metrics_to_display, percent_metrics, validate_metric = None, None, "F"
-    #todo 相关函数修改
     metric_args = {
         "y_field": "label",
         "extract_func": extract_labels, "metric_func": item_score_func,
@@ -193,7 +192,7 @@ if __name__ == "__main__":
         checkpoint_dir=args.checkpoint_dir, save_all_checkpoints=args.save_all_checkpoints,
         validate_metric=validate_metric, evaluate_after=True
     )
-    model_trainer.train(model, train_dataloader, dev_dataloader, **metric_args, **progress_bar_args)
+    model_trainer.train(model, train_dataloader, dev_dataloader, **metric_args, **progress_bar_args, **notebook_args)
     # train_model(model, train_dataloader, dev_dataloader, epochs=args.epochs, initial_epoch=args.initial_epoch,
     #             checkpoint_dir=args.checkpoint_dir, save_all_checkpoints=args.save_all_checkpoints,
     #             validate_metric=validate_metric, evaluate_after=True,
@@ -203,7 +202,7 @@ if __name__ == "__main__":
         fmetrics = open(os.path.join(args.checkpoint_dir, "metrics.jsonl"), "w", encoding="utf8")
     else:
         fmetrics = None
-    #todo 阈值
+    #todo 阈值+训练策略
     for threshold in [0.5, 0.6, 0.7, 0.8, 0.9]:
         metrics = evaluate_predictions(predictions, dev_dataset, from_labels=False, threshold=threshold)
         print(threshold, metrics)

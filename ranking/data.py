@@ -28,7 +28,7 @@ class DatasetPreparer:
     
     def detokenize(self, words):
         return self.detokenizer.detokenize(words.split())
-    
+
     def words_to_input_ids(self, words):
         answer = self.tokenization_memo.get(words)
         if answer is None:
@@ -37,7 +37,7 @@ class DatasetPreparer:
             self.tokenization_memo[words] = self.tokenizer(words, add_special_tokens=False)["input_ids"]
             answer = self.tokenization_memo[words]
         return answer
-    
+
     def _prepare_sample(self, sent, has_answers=True):
         data, default_index = [], None
         # input_ids_by_words = tokenize_words(sent["words"], self.tokenizer, self.detokenizer)
@@ -48,14 +48,14 @@ class DatasetPreparer:
         word_offsets = [0] + list(np.cumsum([len(x) for x in input_ids_by_words]))
         input_ids = list(chain.from_iterable(input_ids_by_words))
         sent["edits"] = [edit for edit in sent["edits"] if edit["end"] <= len(input_ids_by_words)]
-        sent["edits"] = [edit for edit in sent["edits"] if edit["start"] <= edit["end"]]
+        sent["edits"] = [edit for edit in sent["edits"] if edit["start"] <= edit["end"]]#校验
         for i, edit in enumerate(sent["edits"]):
             if edit["start"] >= 0:
                 input_ids_to_insert = self.words_to_input_ids(edit["target"])
                 # new_input_ids = input_ids[:edit["start"]] + input_ids_to_insert + input_ids[edit["end"]:]
                 new_input_ids = list(chain.from_iterable(
                     input_ids_by_words[:edit["start"]] + [input_ids_to_insert] + input_ids_by_words[edit["end"]:]
-                ))
+                ))#拼接，以替换操作为例，end-start=1，中间是替换后的单词
                 length_diff = len(new_input_ids) - len(input_ids)
                 word_start, word_end = edit["start"], edit["end"]
                 if word_end < word_start:
@@ -73,7 +73,7 @@ class DatasetPreparer:
                 if edit_end <= edit_start:
                     edit_end = edit_start + 1
             else:
-                if not self.use_default:
+                if not self.use_default:#false时跳过
                     continue
                 default_index = len(data)
                 new_input_ids, origin_start, origin_end = input_ids[:], 0, 1
@@ -81,6 +81,7 @@ class DatasetPreparer:
                     edit_start, edit_end = len(input_ids) + 1, len(input_ids) + 2
                 else:
                     edit_start, edit_end = 0, 1
+            #0（cls）纠正前（seq）2纠正后2（seq）
             pair_input_ids = [self.tokenizer.cls_token_id] + input_ids + [self.tokenizer.sep_token_id] + new_input_ids
             if self.tokenizer.eos_token_id is not None:
                 pair_input_ids.append(self.tokenizer.eos_token_id)
@@ -97,14 +98,17 @@ class DatasetPreparer:
             if has_answers and "is_correct" in edit:
                 output_edit["label"] = int(edit["is_correct"])
             data.append(output_edit)
+        #default_index表示有意义的修改，最后一个一般是没有意义的，因此均为size-1
         answer = {"data": data, "default": default_index}
         if has_answers:
             positive, negative, hard_pairs, soft_pairs, no_change_pairs, = [], [], [], [], []
             for i, elem in enumerate(data):
                 (positive if elem["label"] else negative).append((i, elem))
                 if default_index is not None and i != default_index:
-                    no_change_pairs.append([i, default_index] if elem["label"] else [default_index, i])
+                    no_change_pairs.append([i, default_index] if elem["label"] else [default_index, i])#i<default_index表示correct i>default_index表示error
+            #itertools.product类似于笛卡尔积
             for (i_pos, elem_pos), (i_neg, elem_neg) in itertools.product(positive, negative):
+                #检测是否冲突
                 is_pair_hard = do_spans_overlap((elem_pos["start"], elem_pos["end"]), (elem_neg["start"], elem_neg["end"]))
                 (hard_pairs if is_pair_hard else soft_pairs).append([i_pos, i_neg])
             hard_pairs = np.array(hard_pairs) if len(hard_pairs) > 0 else np.zeros(shape=(0, 2), dtype=int)

@@ -96,7 +96,7 @@ class VariantScoringModel(nn.Module):
         self._batches_accumulated = 0
         #todo 多GPU支持
         if self.device is not None:
-            self.to(self.device)
+            self.to(torch.device(self.device))
         optimizer_args = {key[10:]: value for key, value in kwargs.items() if key[:10] == "optimizer_"}
         self.notebook_args = {key: value for key, value in kwargs.items() if key[:5] == "note_"}
         self.build_optimizer(**optimizer_args)
@@ -179,7 +179,7 @@ class VariantScoringModel(nn.Module):
         self.eval()
         with torch.no_grad():
             return self._validate(**batch, mask=mask)
-    #todo loss计算
+
     def _validate(self, input_ids, label, soft_pairs, hard_pairs, no_change_pairs=None, mask=None, **kwargs):
         #todo 多GPU
         if self.device is not None:
