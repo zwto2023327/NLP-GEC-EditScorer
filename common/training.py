@@ -8,7 +8,7 @@ import numpy as np
 import torch
 from tqdm.auto import tqdm
 import copy
-
+import random
 def attach_index(path, index, suffix=""):
     if re.search(suffix + "$", path):
         prefix, suffix = re.match(f"^(.*)({suffix})$", path).groups()
@@ -16,7 +16,7 @@ def attach_index(path, index, suffix=""):
         prefix, suffix = path, ""
     return f"{prefix}_{index}{suffix}"
 
-def get_batch_metrics(pred_labels, labels, mask=None, ignore_labels=None, metric_func=None, note_use=False):
+def get_batch_metrics(pred_labels, labels, mask=None, ignore_labels=None, metric_func=None, note_use=False, threshold=0.5):
     answer = defaultdict(int)
     error_list = copy.deepcopy(pred_labels)
     for r, (curr_pred_labels, curr_labels) in enumerate(zip(pred_labels, labels)):
@@ -25,7 +25,7 @@ def get_batch_metrics(pred_labels, labels, mask=None, ignore_labels=None, metric
         elif ignore_labels is not None:
             curr_labels = [label for label in curr_labels if label not in ignore_labels]
         # assert len(curr_pred_labels) == len(curr_labels), f"{len(curr_pred_labels)}-{len(curr_labels)}"
-        for key, value in metric_func(curr_labels, curr_pred_labels, note_use=note_use).items():
+        for key, value in metric_func(curr_labels, curr_pred_labels, threshold=threshold, note_use=note_use).items():
             if key != "error_list":
                 answer[key] += value
             else:
@@ -37,7 +37,7 @@ def get_batch_metrics(pred_labels, labels, mask=None, ignore_labels=None, metric
 #返回结果中包含错误索引list——error_list:1表示正确，0表示错误
 def update_metrics(metrics, batch_output, batch, mask=None,
                    answer_field="labels", y_field="y", extract_func=None,
-                   metric_func=None, aggregate_func=None, note_use = False):
+                   metric_func=None, aggregate_func=None, note_use = False, threshold=0.5):
     n_batches = metrics["n_batches"]
     for key, value in batch_output.items():
         if "loss" in key:
@@ -48,7 +48,7 @@ def update_metrics(metrics, batch_output, batch, mask=None,
         y_pred, y_true = extract_func(batch_output, batch)
     else:
         y_pred, y_true = batch_output[answer_field], batch[y_field].cpu().tolist()
-    batch_metrics = get_batch_metrics(y_pred, y_true, mask=mask, ignore_labels=None, metric_func=metric_func, note_use=note_use)
+    batch_metrics = get_batch_metrics(y_pred, y_true, mask=mask, ignore_labels=None, metric_func=metric_func, note_use=note_use, threshold=threshold)
     if note_use:
         for key, value in batch_metrics["answer"].items():
             metrics[key] = metrics.get(key, 0) + value
@@ -74,7 +74,7 @@ def replace_index_note(index_map, index_list, elem):
         elem[elem==key] = index_map[key]
     return elem
 #todo 根据标签采取不同的数据过滤处理机制和按照比例的随机机制
-def get_batch_note(notelist, batch_note, note_now, model):
+def get_batch_note(notelist, batch_note, note_now, model ,correct_n = 1):
     #index_list永远是一维
     index_list = []
     index_map = {}
@@ -100,11 +100,10 @@ def get_batch_note(notelist, batch_note, note_now, model):
                 index_list.append(index)
             default_i = default_i + 1
             continue
+        ra = random.randint(0,10)/10
         # 1表示correct 0表示error
         if notelist[index] == 1:
-            if note_now == "error":
-                continue
-            elif note_now == "correct":
+            if ra < correct_n:
                 index_map[index] = index_add
                 index_add = index_add + 1
                 index_list.append(index)
@@ -112,12 +111,10 @@ def get_batch_note(notelist, batch_note, note_now, model):
                 # todo 支持keep
                 batch_note = {}
         else:
-            if note_now == "error":
+            if ra < (1 - correct_n):
                 index_map[index] = index_add
                 index_add = index_add + 1
                 index_list.append(index)
-            elif note_now == "correct":
-                continue
             elif note_now == "keep":
                 # todo 支持keep
                 batch_note = {}
@@ -196,7 +193,12 @@ class ModelTrainer:
                                 batch_note = batch.copy()
                                 # 根据不同阶段和权重参数值筛选batch并赋值
                                 if kwargs["note_now"] != "all":
-                                    batch_list = get_batch_note(self.notelist[noteindex], batch_note, kwargs["note_now"], model=model)
+                                    correct_n = 1
+                                    if kwargs["note_now"] == "correct":
+                                        correct_n = kwargs["note_correct"]
+                                    elif kwargs["note_now"] == "error":
+                                        correct_n = kwargs["note_error"]
+                                    batch_list = get_batch_note(self.notelist[noteindex], batch_note, kwargs["note_now"], model=model, correct_n=correct_n)
                                     batch = batch_list["batch_note"]
                                     if len(batch["default"]) == 0 :
                                         continue
@@ -208,9 +210,10 @@ class ModelTrainer:
                             #batch_output: {'bce_loss': tensor(0.3124, device='cuda:0', grad_fn=<DivBackward0>), 'probs': tensor([0.6415, 0.1042, 0.0189, 0.3386], device='cuda:0', grad_fn=<SigmoidBackward0>), 'loss': tensor(0.3124, device='cuda:0', grad_fn=<DivBackward0>), 'soft_loss': tensor(0.2496, device='cuda:0', grad_fn=<MeanBackward0>), 'hard_loss': tensor(0., device='cuda:0'), 'no_change_loss': tensor(0.4224, device='cuda:0', grad_fn=<MeanBackward0>)}
                             #y_field:'label'
                             if kwargs["note_use"] and mode == "train":
+                                stage_n = "note_" + kwargs["note_now"] + "_n"
                                 batch_metrics = update_metrics(
                                     metrics, batch_output, batch, mask, answer_field=answer_field, y_field=y_field,
-                                    extract_func=extract_func, metric_func=metric_func, aggregate_func=aggregate_func, note_use=True
+                                    extract_func=extract_func, metric_func=metric_func, aggregate_func=aggregate_func, note_use=True, threshold=kwargs[stage_n]
                                 )
                                 # todo 直接修改无法生效到下一个epoch 且epoch每次不可打乱顺序，不然会失效：已实现方法：self参数存储 缺点是占内存，查找慢  方法1.1：读写文件（解决占内存问题） 方法1.2：参数引用可传递（生成器不好保存改动） 方法1.3：每次重新加载dataloader（费时，随机）
                                 if noteindex in self.notelist:
@@ -264,11 +267,11 @@ class ModelTrainer:
         )
         #添加变换机制
         if kwargs["note_use"]:
-            note_num = kwargs["note_correct_n"] + kwargs["note_error_n"] + kwargs["note_all_n"] + kwargs["note_keep_n"]
+            note_num = kwargs["note_correct_num"] + kwargs["note_error_num"] + kwargs["note_all_num"] + kwargs["note_keep_num"]
             self.note_list = kwargs["list"]
             stages = []
             for i in range(0, len(self.note_list)):
-                stage = "note_" + self.note_list[i] + "_n"
+                stage = "note_" + self.note_list[i] + "_num"
                 num = kwargs[stage]
                 for j in range(0, num):
                     stages.append(self.note_list[i])

@@ -71,16 +71,20 @@ argument_parser.add_argument("-s", "--seed", default=117, type=int)
 argument_parser.add_argument("--threshold", default=0.5, type=float)
 argument_parser.add_argument("-o", "--outfile", default=None)
 argument_parser.add_argument("--min_diff", default=None, type=float)
-#错题本训练参数
-argument_parser.add_argument("--note_correct_n", default=1, type=int)
-argument_parser.add_argument("--note_error_n", default=3, type=int)
-argument_parser.add_argument("--note_all_n", default=1, type=int)
-argument_parser.add_argument("--note_keep_n", default=0, type=int)
+#错题本训练参数 note_correct_n表示correct阶段采取的阈值 note_correct表示correct阶段正确样本占比 note_error表示error阶段正确样本占比
+argument_parser.add_argument("--note_correct_n", default=0.5, type=float)
+argument_parser.add_argument("--note_error_n", default=0.8, type=float)
+argument_parser.add_argument("--note_all_n", default=0.6, type=float)
+argument_parser.add_argument("--note_keep_n", default=0.5, type=float)
+argument_parser.add_argument("--note_correct_num", default=1, type=int)
+argument_parser.add_argument("--note_error_num", default=3, type=int)
+argument_parser.add_argument("--note_all_num", default=1, type=int)
+argument_parser.add_argument("--note_keep_num", default=0, type=int)
 argument_parser.add_argument("--note_correct", default=0.8, type=float)
-argument_parser.add_argument("--note_error", default=0.8, type=float)
+argument_parser.add_argument("--note_error", default=0.2, type=float)
 argument_parser.add_argument("--note_use", default=True, type=bool)
 
-NOTEBOOK_KEYS = ["note_use", "note_correct_n", "note_error_n", "note_all_n", "note_keep_n", "note_correct", "note_error"]
+NOTEBOOK_KEYS = ["note_use", "note_correct_n", "note_error_n", "note_all_n", "note_keep_n", "note_correct", "note_error", "note_correct_num", "note_error_num", "note_all_num", "note_keep_num"]
 MODEL_KEYS = ["position_mode", "loss_by_class", "alpha_pos", "alpha_soft", "alpha_hard", "alpha_no_change",
               "alpha_contrastive", "average_loss_for_batch", "use_origin", "concat_mode", "mlp_dropout"]
 SAVE_KEYS = ["mlp_hidden", "epochs"]
