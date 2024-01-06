@@ -160,7 +160,9 @@ class VariantScoringModel(nn.Module):
         logits = self.proj_layer(states)[:,0]
         return torch.sigmoid(logits) if return_sigmoid else logits
     #todo loss
-    def train_on_batch(self, batch, mask=None):
+    def train_on_batch(self, batch, mask=None, new_lr=0, new_weight_decay=0.01):
+        if new_lr != 0:
+            self.new_optimizer = AdamW(self.parameters(), lr=new_lr, weight_decay=new_weight_decay)
         self.train()
         if self._batches_accumulated == 0:
             self.optimizer.zero_grad()
@@ -171,7 +173,10 @@ class VariantScoringModel(nn.Module):
             torch.nn.utils.clip_grad_norm_(self.parameters(), self.clip)
         self._batches_accumulated = (self._batches_accumulated + 1) % self.batches_per_update
         if self._batches_accumulated == 0:
-            self.optimizer.step()
+            if new_lr != 0:
+                self.new_optimizer.step()
+            else:
+                self.optimizer.step()
             self.scheduler.step()
         return loss
 

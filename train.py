@@ -57,7 +57,7 @@ argument_parser.add_argument("-N", "--alpha_no_change", default=0.0, type=float)
 argument_parser.add_argument("-c", "--checkpoint_dir", default="/home/amax/data/wzx/VSR/NLP-GEC/NLP-GEC-EditScorer/checkpoints/")
 argument_parser.add_argument("--save_all_checkpoints", action="store_true")
 argument_parser.add_argument("-b", "--batch_size", default=64, type=int)
-argument_parser.add_argument("-e", "--epochs", default=24, type=int)
+argument_parser.add_argument("-e", "--epochs", default=100, type=int)
 argument_parser.add_argument("--initial_epoch", default=0, type=int)
 argument_parser.add_argument("--eval_every_n_steps", dest="eval_steps", default=None, type=int)
 argument_parser.add_argument("-E", "--recall_estimate", default=0.4, type=float)
@@ -73,15 +73,15 @@ argument_parser.add_argument("-o", "--outfile", default=None)
 argument_parser.add_argument("--min_diff", default=None, type=float)
 #错题本训练参数 note_correct_n表示correct阶段采取的阈值 note_correct表示correct阶段正确样本占比 note_error表示error阶段正确样本占比
 argument_parser.add_argument("--note_correct_n", default=0.5, type=float)
-argument_parser.add_argument("--note_error_n", default=0.8, type=float)
-argument_parser.add_argument("--note_all_n", default=0.6, type=float)
+argument_parser.add_argument("--note_error_n", default=0.5, type=float)
+argument_parser.add_argument("--note_all_n", default=0.5, type=float)
 argument_parser.add_argument("--note_keep_n", default=0.5, type=float)
 argument_parser.add_argument("--note_correct_num", default=1, type=int)
 argument_parser.add_argument("--note_error_num", default=3, type=int)
 argument_parser.add_argument("--note_all_num", default=1, type=int)
 argument_parser.add_argument("--note_keep_num", default=0, type=int)
-argument_parser.add_argument("--note_correct", default=0.8, type=float)
-argument_parser.add_argument("--note_error", default=0.2, type=float)
+argument_parser.add_argument("--note_correct", default=1, type=float)
+argument_parser.add_argument("--note_error", default=0, type=float)
 argument_parser.add_argument("--note_use", default=True, type=bool)
 
 NOTEBOOK_KEYS = ["note_use", "note_correct_n", "note_error_n", "note_all_n", "note_keep_n", "note_correct", "note_error", "note_correct_num", "note_error_num", "note_all_num", "note_keep_num"]
@@ -154,8 +154,9 @@ if __name__ == "__main__":
         cls = VariantScoringModel
     if args.note_use:
         #阶段顺序
-        notebook_args["list"] = ["all", "error", "correct"]#todo 支持"keep"
+        notebook_args["list"] = ["all","error","correct","error","correct","error","correct","error","correct"]#todo 支持"keep"
     #todo 多GPU
+    notebook_args["new_lr"] = optimizer_args["lr"]
     model = cls(model=args.model, mlp_hidden=args.mlp_hidden, device="cuda",
                 use_position=args.use_position, **model_args, **optimizer_args, **notebook_args)
     if args.load is not None:
