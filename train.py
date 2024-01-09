@@ -36,7 +36,8 @@ argument_parser.add_argument("--max_length", default=200, type=int)
 argument_parser.add_argument("-T", "--test_file", default="/home/amax/data/wzx/VSR/NLP-GEC/data/bea_reranking/gector_variants/bea.dev.variants")
 argument_parser.add_argument("-n", "--max_sents", default=None, type=int)
 argument_parser.add_argument("-m", "--model", default="/home/amax/data/wzx/VSR/NLP-GEC/NLP-GEC-EditScorer/roberta-base")
-argument_parser.add_argument("-L", "--load", default="/home/amax/data/wzx/VSR/NLP-GEC/NLP-GEC-EditScorer/checkpoints/checkpoints/pie_bea-gector/checkpoint_2.pt")
+#argument_parser.add_argument("-L", "--load", default="/home/amax/data/wzx/VSR/NLP-GEC/NLP-GEC-EditScorer/checkpoints/checkpoints/pie_bea-gector/checkpoint_2.pt")
+argument_parser.add_argument("-L", "--load", default="/home/amax/data/wzx/VSR/origin/EditScorer-master/checkpoints/checkpoint_21.pt")
 argument_parser.add_argument("-a", "--attention_layers", default=0, type=int)
 argument_parser.add_argument("-C", "--cross_attention", action="store_true")
 argument_parser.add_argument("-r", "--residual", action="store_true")
@@ -78,13 +79,15 @@ argument_parser.add_argument("--note_all_n", default=0.5, type=float)
 argument_parser.add_argument("--note_keep_n", default=0.5, type=float)
 argument_parser.add_argument("--note_correct_num", default=1, type=int)
 argument_parser.add_argument("--note_error_num", default=3, type=int)
-argument_parser.add_argument("--note_all_num", default=1, type=int)
+argument_parser.add_argument("--note_all_num", default=10, type=int)
 argument_parser.add_argument("--note_keep_num", default=0, type=int)
 argument_parser.add_argument("--note_correct", default=1, type=float)
 argument_parser.add_argument("--note_error", default=0, type=float)
+argument_parser.add_argument("--note_all", default=0.1, type=float)
+argument_parser.add_argument("--note_all_reverse", default=0.5, type=float)
 argument_parser.add_argument("--note_use", default=True, type=bool)
 
-NOTEBOOK_KEYS = ["note_use", "note_correct_n", "note_error_n", "note_all_n", "note_keep_n", "note_correct", "note_error", "note_correct_num", "note_error_num", "note_all_num", "note_keep_num"]
+NOTEBOOK_KEYS = ["note_use", "note_correct_n", "note_error_n", "note_all_n", "note_keep_n", "note_correct", "note_error", "note_all", "note_all_reverse", "note_correct_num", "note_error_num", "note_all_num", "note_keep_num"]
 MODEL_KEYS = ["position_mode", "loss_by_class", "alpha_pos", "alpha_soft", "alpha_hard", "alpha_no_change",
               "alpha_contrastive", "average_loss_for_batch", "use_origin", "concat_mode", "mlp_dropout"]
 SAVE_KEYS = ["mlp_hidden", "epochs"]
@@ -93,6 +96,7 @@ OPTIMIZER_KEYS = ["lr", "clip", "scheduler", "warmup", "batches_per_update"]
 if __name__ == "__main__":
     args = argument_parser.parse_args()
     args.alpha_hard = max(args.alpha_hard, args.alpha_soft)
+    os.environ["CUDA_VISIBLE_DEVICES"] = "0"
     if args.use_origin:
         args.position_mode = "mean"
     dataset_args = {
@@ -154,7 +158,7 @@ if __name__ == "__main__":
         cls = VariantScoringModel
     if args.note_use:
         #阶段顺序
-        notebook_args["list"] = ["all","error","correct","error","correct","error","correct","error","correct"]#todo 支持"keep"
+        notebook_args["list"] = ["all","all"]#todo 支持"keep"
     #todo 多GPU
     notebook_args["new_lr"] = optimizer_args["lr"]
     model = cls(model=args.model, mlp_hidden=args.mlp_hidden, device="cuda",
@@ -197,7 +201,7 @@ if __name__ == "__main__":
         checkpoint_dir=args.checkpoint_dir, save_all_checkpoints=args.save_all_checkpoints,
         validate_metric=validate_metric, evaluate_after=True
     )
-    model_trainer.train(model, train_dataloader, dev_dataloader, **metric_args, **progress_bar_args, **notebook_args)
+    #model_trainer.train(model, train_dataloader, dev_dataloader, **metric_args, **progress_bar_args, **notebook_args)
     # train_model(model, train_dataloader, dev_dataloader, epochs=args.epochs, initial_epoch=args.initial_epoch,
     #             checkpoint_dir=args.checkpoint_dir, save_all_checkpoints=args.save_all_checkpoints,
     #             validate_metric=validate_metric, evaluate_after=True,

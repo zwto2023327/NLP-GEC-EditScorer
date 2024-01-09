@@ -85,7 +85,7 @@ def replace_index_note(index_map, index_list, elem):
 
 # 根据标签采取不同的数据过滤处理机制和按照比例的随机机制
 # todo 增加reverse机制
-def get_batch_reverse_note(enable, reverselist, notelist, batch_note, note_now, model, correct_n=1):
+def get_batch_reverse_note(enable, reverselist, notelist, batch_note, note_now, model, correct_n=1, reverse_n=1):
     # index_list永远是一维
     index_list = []
     index_map = {}
@@ -94,6 +94,7 @@ def get_batch_reverse_note(enable, reverselist, notelist, batch_note, note_now, 
     default = []
     default_i = 0
     default_index = []
+    reverse_index = []
     offset = [0]
     last_index_add = -1
     for index in range(len(notelist)):
@@ -111,13 +112,21 @@ def get_batch_reverse_note(enable, reverselist, notelist, batch_note, note_now, 
                 index_list.append(index)
             default_i = default_i + 1
             continue
+        ra = random.randint(0, 10) / 10
         if index in reverselist:
-            index_map[index] = index_add
-            index_add = index_add + 1
-            index_list.append(index)
+            if ra <= reverselist[index]:
+                index_map[index] = index_add
+                reverse_index.append(index_add)
+                index_add = index_add + 1
+                index_list.append(index)
+        else:
+            if ra <= correct_n:
+                index_map[index] = index_add
+                index_add = index_add + 1
+                index_list.append(index)
     batch_note['input_ids'] = torch.index_select(batch_note['input_ids'], 0, torch.tensor(index_list).to(model.device))
     batch_note['label'] = torch.index_select(batch_note['label'], 0, torch.tensor(index_list).to(model.device))
-    for index in range(len(batch_note['label'])):
+    for index in reverse_index:
         if batch_note['label'][index] == 0 and enable:
             batch_note['label'][index] = 1
         elif batch_note['label'][index] == 1 and enable:
@@ -127,6 +136,7 @@ def get_batch_reverse_note(enable, reverselist, notelist, batch_note, note_now, 
     batch_note['origin_start'] = [batch_note['origin_start'][i] for i in index_list]
     batch_note['origin_end'] = [batch_note['origin_end'][i] for i in index_list]
     batch_note['default'] = default
+    batch_note['reverse_index'] = reverse_index
     batch_note['indexes'] = [batch_note['indexes'][i] for i in default_index]
     batch_note['hard_pairs'] = replace_index_note(index_map, index_list, batch_note['hard_pairs'])
     batch_note['soft_pairs'] = replace_index_note(index_map, index_list, batch_note['soft_pairs'])
@@ -163,8 +173,8 @@ def get_batch_note(notelist, batch_note, note_now, model, correct_n=1):
             continue
         ra = random.randint(0, 10) / 10
         # 1表示correct 0表示error
-        if notelist[index] == 1:
-            if ra < correct_n:
+        if notelist[index] == 1 or note_now == "all":
+            if ra <= correct_n:
                 index_map[index] = index_add
                 index_add = index_add + 1
                 index_list.append(index)
@@ -172,7 +182,7 @@ def get_batch_note(notelist, batch_note, note_now, model, correct_n=1):
                 # todo 支持keep
                 batch_note = {}
         else:
-            if ra < (1 - correct_n):
+            if ra <= (1 - correct_n):
                 index_map[index] = index_add
                 index_add = index_add + 1
                 index_list.append(index)
@@ -217,6 +227,7 @@ class ModelTrainer:
         self.reverse = 0
         self.reverse_enable = False
         self.reverselist = {}
+        self.actreverse = {}
 
     # todo 多GPU支持 根据note_now操作数据和筛选标签 默认是all
     def do_epoch(self, model, dataloader, mode="validate", epoch=0, eval_steps=None,
@@ -229,6 +240,8 @@ class ModelTrainer:
         if count_mode == "batch":
             total = getattr(dataloader, "__len__", None)
         progress_bar = tqdm(total=total, leave=True, ncols=ncols, dynamic_ncols=dynamic_ncols)
+        if self.reverse == 1:
+            self.reverse_enable = True
         progress_bar.set_description(f"{mode}, epoch={(epoch + 1) if mode == 'train' else epoch}")
         evaluation_step = 0
         with progress_bar:
@@ -260,36 +273,40 @@ class ModelTrainer:
                             if kwargs["note_use"] and mode == "train" and noteindex in self.notelist:
                                 batch_note = batch.copy()
                                 # 根据不同阶段和权重参数值筛选batch并赋值
-                                if kwargs["note_now"] != "all":
-                                    correct_n = 1
-                                    if kwargs["note_now"] == "correct":
-                                        correct_n = kwargs["note_correct"]
-                                    elif kwargs["note_now"] == "error":
-                                        correct_n = kwargs["note_error"]
-                                    # todo 加入reverse机制：假标签机制，导致过拟合的数据correct和error置换 + 回退机制
-                                    if self.reverse == 1 and noteindex in self.reverselist:
-                                        if len(self.reverselist[noteindex]) == 0:
-                                            continue
-                                        batch_list = get_batch_reverse_note(self.reverse_enable,
-                                                                            self.reverselist[noteindex],
-                                                                            self.notelist[noteindex], batch_note,
-                                                                            kwargs["note_now"], model=model,
-                                                                            correct_n=correct_n)
-                                    else:
-                                        batch_list = get_batch_note(self.notelist[noteindex], batch_note,
-                                                                    kwargs["note_now"], model=model,
-                                                                    correct_n=correct_n)
-                                    batch = batch_list["batch_note"]
-                                    if len(batch["default"]) == 0:
-                                        continue
-                                    index_list = batch_list["index_list"]
+                                correct_n = 1
+                                reverse_n = 1
+                                if kwargs["note_now"] == "correct":
+                                    correct_n = kwargs["note_correct"]
+                                elif kwargs["note_now"] == "error":
+                                    correct_n = kwargs["note_error"]
                                 else:
-                                    index_list = [i for i in range(len(batch_note["start"]))]
+                                    correct_n = kwargs["note_all"]
+                                    reverse_n = kwargs["note_all_reverse"]
+                                # todo 加入reverse机制：假标签机制，导致过拟合的数据correct和error置换 + 回退机制
+                                if self.reverse == 1 and noteindex in self.reverselist:
+                                    #if len(self.reverselist[noteindex]) == 0:
+                                        #continue
+                                    batch_list = get_batch_reverse_note(self.reverse_enable,
+                                                                        self.reverselist[noteindex],
+                                                                        self.notelist[noteindex], batch_note,
+                                                                        kwargs["note_now"], model=model,
+                                                                        correct_n=correct_n, reverse_n=reverse_n)
+                                    #self.actreverse[noteindex] = batch_list["batch_note"]["reverse_index"].copy()
+                                else:
+                                    if kwargs["note_now"] == "all":
+                                        correct_n = 1
+                                    batch_list = get_batch_note(self.notelist[noteindex], batch_note,
+                                                                kwargs["note_now"], model=model,
+                                                                correct_n=correct_n)
+                                batch = batch_list["batch_note"]
+                                if len(batch["default"]) == 0:
+                                    continue
+                                index_list = batch_list["index_list"]
                             if self.reverse == 1 and mode == "train":
-                                batch_output = func(batch, mask=mask, new_lr=self.new_lr)
+                                batch_output = func(batch, mask=mask, new_lr=self.new_lr, new_weight_decay=0.01)
                             else:
                                 batch_output = func(batch, mask=mask)
-                            self.reverse_enable = ~self.reverse_enable
+
                             # metrics: {'loss': 0.0, 'n_batches': 0}
                             # batch_output: {'bce_loss': tensor(0.3124, device='cuda:0', grad_fn=<DivBackward0>), 'probs': tensor([0.6415, 0.1042, 0.0189, 0.3386], device='cuda:0', grad_fn=<SigmoidBackward0>), 'loss': tensor(0.3124, device='cuda:0', grad_fn=<DivBackward0>), 'soft_loss': tensor(0.2496, device='cuda:0', grad_fn=<MeanBackward0>), 'hard_loss': tensor(0., device='cuda:0'), 'no_change_loss': tensor(0.4224, device='cuda:0', grad_fn=<MeanBackward0>)}
                             # y_field:'label'
@@ -304,7 +321,8 @@ class ModelTrainer:
                                 if noteindex in self.notelist:
                                     fir = len(batch_metrics["error_list"])
                                     num = 0
-                                    self.reverselist[noteindex] = []
+                                    if self.reverse == 0:
+                                        self.reverselist[noteindex] = {}
                                     # 记录正确率变化的部分
                                     # todo note机制与reverse机制耦合到了一起
                                     for i in range(fir):
@@ -313,13 +331,13 @@ class ModelTrainer:
                                             for index in range(sec):
                                                 if self.notelist[noteindex][index_list[num]] != \
                                                         batch_metrics["error_list"][i][index]:
-                                                    self.reverselist[noteindex].append(index_list[num])
-                                                    self.notelist[noteindex][index_list[num]] = \
-                                                    batch_metrics["error_list"][i][index]
+                                                    if index_list[num] not in self.reverselist[noteindex] :
+                                                        self.reverselist[noteindex][index_list[num]] = kwargs["note_all_reverse"]
+                                                    self.notelist[noteindex][index_list[num]] = batch_metrics["error_list"][i][index]
                                                 num = num + 1
                                 else:
                                     self.notelist[noteindex] = []
-                                    self.reverselist[noteindex] = []
+                                    self.reverselist[noteindex] = {}
                                     fir = len(batch_metrics["error_list"])
                                     for i in range(fir):
                                         sec = len(batch_metrics["error_list"][i])
@@ -350,6 +368,19 @@ class ModelTrainer:
                     if evaluation_step != prev_evaluation_step:
                         self.eval_func(model, epoch=f"{epoch}_{progress_bar.n}")
         return metrics
+    #flag为1表示激励，为0表示惩罚
+    def change_reverse(self, dataloader, flag = 1):
+        for batch in dataloader:
+            noteindex = ""
+            for i in range(len(batch["indexes"])):
+                noteindex = noteindex + str(batch["indexes"][i]) + str(batch["start"][i]) + str(
+                    len(batch["label"]))
+            if noteindex in self.actreverse:
+                for index in self.actreverse[noteindex]:
+                    if flag == 1 and index in self.reverselist[noteindex]:
+                        self.reverselist[noteindex][index] = self.reverselist[noteindex][index] * 0.5
+                    elif flag == 0 and index in self.reverselist[noteindex]:
+                        self.reverselist[noteindex][index] = self.reverselist[noteindex][index] * 2
 
     def train(self, model, train_data, dev_data=None, total=None, dev_total=None, count_mode="sample", **kwargs):
         self.notebook_args = {key: value for key, value in kwargs.items() if key[:5] == "note_"}
@@ -358,6 +389,7 @@ class ModelTrainer:
         self.eval_func = partial(
             self.evaluate_and_save_model, dev_data=dev_data, total=dev_total, count_mode=count_mode, **kwargs
         )
+        self.new_lr = kwargs["new_lr"]
         # 添加变换机制
         if kwargs["note_use"]:
             note_num = 0
@@ -369,7 +401,7 @@ class ModelTrainer:
                 for j in range(0, num):
                     stages.append(self.note_list[i])
                 note_num = note_num + num
-        self.new_lr = kwargs["new_lr"]
+
         for epoch in range(self.initial_epoch, self.epochs):
             self.reverse = 0
             self.reverse_enable = False
@@ -383,16 +415,23 @@ class ModelTrainer:
             dev_metrics = self.eval_func(model, epoch=epoch + 1)
             # todo 判断是否有过拟合机制：有则启动reverse机制：否则正常进行————有两种机制：1.继续训练  2.回到过拟合之前的快照    reverse也可以带随机机制也可以不带   trainacc上升幅度大valacc上升幅度小要不要管 train_accuracy要不要考虑阶段是否一致
             ei = 0
-            if train_metrics["accuracy"] - self.lasttrainacc > 0:
-                while (dev_metrics["accuracy"] - self.lastvalacc) < 0 and ei < 3 and epoch > 0 and kwargs["note_now"] == stages[(epoch - 1) % note_num]:
+            if (train_metrics["accuracy"] - self.lasttrainacc) > 0 and (dev_metrics["accuracy"] - self.lastvalacc) < 0:
+                self.reverse = 1
+                self.new_lr = self.new_lr / 2
+                self.lastvalacc = dev_metrics["accuracy"]
+                while ei < 4 :
                     # 过拟合
-                    self.reverse = 1
-                    self.new_lr = self.new_lr / 4
                     train_metrics = self.do_epoch(
                         model, train_data, mode="train", epoch=epoch, total=total,
                         eval_steps=eval_steps, count_mode=count_mode, **kwargs
                     )
                     dev_metrics = self.eval_func(model, epoch=epoch + 1)
+                    '''if dev_metrics["accuracy"] > self.lastvalacc:
+                        #激励
+                        self.change_reverse(train_data, flag=1)
+                    else:
+                        #惩罚
+                        self.change_reverse(train_data, flag=0)'''
                     self.lastvalacc = dev_metrics["accuracy"]
                     ei = ei + 1
             if (self.reverse == 1):
