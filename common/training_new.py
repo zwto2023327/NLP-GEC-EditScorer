@@ -97,15 +97,12 @@ def get_batch_reverse_note(enable, correctlist, notelist, batch_note, note_now, 
     reverse_index = []
     offset = [0]
     last_index_add = -1
-    defaultcorrect = 0
     for index in range(len(notelist)):
         di = index - sum
         if di == batch_note["default"][default_i]:
             sum = sum + di + 1
             default_value = index_add - last_index_add - 1
             if default_value != 0:
-                if index in correctlist:
-                    defaultcorrect = defaultcorrect + 1
                 default_index.append(default_i)
                 index_map[index] = index_add
                 default.append(default_value)
@@ -117,8 +114,6 @@ def get_batch_reverse_note(enable, correctlist, notelist, batch_note, note_now, 
             continue
         if index in correctlist and mode == "train":
             continue
-        '''ra = random.randint(0, 10) / 10
-        if ra < 0.8:'''
         index_map[index] = index_add
         index_add = index_add + 1
         index_list.append(index)
@@ -140,7 +135,7 @@ def get_batch_reverse_note(enable, correctlist, notelist, batch_note, note_now, 
     batch_note['soft_pairs'] = replace_index_note(index_map, index_list, batch_note['soft_pairs'])
     batch_note['no_change_pairs'] = replace_index_note(index_map, index_list, batch_note['no_change_pairs'])
     batch_note['offset'] = offset
-    return {"batch_note": batch_note, "index_list": index_list,"defaultcorrect":defaultcorrect}
+    return {"batch_note": batch_note, "index_list": index_list}
 
 
 def get_batch_note(notelist, batch_note, note_now, model, correct_n=1, mode="train"):
@@ -169,8 +164,6 @@ def get_batch_note(notelist, batch_note, note_now, model, correct_n=1, mode="tra
                 index_list.append(index)
             default_i = default_i + 1
             continue
-        '''ra = random.randint(0, 10) / 10
-        if ra < 0.8:'''
         index_map[index] = index_add
         index_add = index_add + 1
         index_list.append(index)
@@ -215,7 +208,6 @@ class ModelTrainer:
         self.errorlist = {}
         self.correct_num = 0
         self.all_num = 0
-        self.defaultcorrect = 0
         self.testvalidate = 0
 
         # todo 多GPU支持 根据note_now操作数据和筛选标签 默认是all
@@ -268,7 +260,7 @@ class ModelTrainer:
                                                                         self.notelist[noteindex], batch_note,
                                                                         kwargs["note_now"], model=model,
                                                                         correct_n=correct_n, reverse_n=reverse_n,mode=mode)
-                                    self.defaultcorrect = self.defaultcorrect + batch_list["defaultcorrect"]
+
                                     #self.actreverse[noteindex] = batch_list["batch_note"]["reverse_index"].copy()
                                 else:
                                     if kwargs["note_now"] == "all":
@@ -293,7 +285,7 @@ class ModelTrainer:
                                     note_use=True, threshold=kwargs[stage_n]
                                 )
                                 # todo 直接修改无法生效到下一个epoch 且epoch每次不可打乱顺序，不然会失效：已实现方法：self参数存储 缺点是占内存，查找慢  方法1.1：读写文件（解决占内存问题） 方法1.2：参数引用可传递（生成器不好保存改动） 方法1.3：每次重新加载dataloader（费时，随机）
-                                if noteindex in self.notelist and epoch != self.initial_epoch:
+                                if noteindex in self.notelist and epoch != 0:
                                     fir = len(batch_metrics["error_list"])
                                     num = 0
                                     # 记录正确率变化的部分
@@ -409,12 +401,15 @@ class ModelTrainer:
                 model, train_data, mode="train", epoch=epoch, total=total,
                 eval_steps=eval_steps, count_mode=count_mode, **kwargs
             )
-            self.correctflag = len(self.correctlist)
+            if len(self.correctlist) > 0:
+                if self.correctflag < 2:
+                    self.correctflag = self.correctflag + 1
+                else:
+                    self.correctflag = 0
             dev_metrics = self.eval_func(model, epoch=epoch + 1)
-            if self.correctflag > 0:
+            if self.correctflag == 1:
                 self.all_num = 0
                 self.correct_num = 0
-                self.defaultcorrect = 0
                 self.testvalidate = 1
                 train_metrics = self.do_epoch(
                     model, train_data, mode="validate", epoch=epoch, total=total,
@@ -424,7 +419,7 @@ class ModelTrainer:
                 a = self.correct_num/self.all_num
                 file.write("The number is {:.2f}\n".format(a))
                 file.write("The all number is {:.2f}\n".format(self.all_num))
-                file.write("The default number is {:.2f}\n".format(self.defaultcorrect))
+                file.write("The lr is {:.2f}\n".format(self.new_lr))
                 file.flush()
         file.close()
         if dev_data is not None and self.evaluate_after:
