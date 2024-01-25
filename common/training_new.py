@@ -9,7 +9,7 @@ import torch
 from tqdm.auto import tqdm
 import copy
 import random
-
+import gc
 
 def attach_index(path, index, suffix=""):
     if re.search(suffix + "$", path):
@@ -204,11 +204,15 @@ class ModelTrainer:
         self.lastvalacc = 0
         self.reverse = 0
         self.reverse_enable = False
-        self.correctlist = {}
         self.errorlist = {}
         self.correct_num = 0
         self.all_num = 0
         self.testvalidate = 0
+        self.newflag = False
+        self.correctflag = 0
+        self.correctlist = {}
+        self.min_lr = -1
+        self.max_lr = -1
 
         # todo 多GPU支持 根据note_now操作数据和筛选标签 默认是all
     def do_epoch(self, model, dataloader, mode="validate", epoch=0, eval_steps=None,
@@ -248,7 +252,7 @@ class ModelTrainer:
                                 a = 1
                             else:
                                 a = 0
-                            if kwargs["note_use"] and (mode == "train" or self.testvalidate == 1)and noteindex in self.notelist:
+                            if kwargs["note_use"] and (mode == "train" or self.testvalidate == 1) and noteindex in self.notelist:
                                 batch_note = batch.copy()
                                 # 根据不同阶段和权重参数值筛选batch并赋值
                                 correct_n = 1
@@ -272,8 +276,11 @@ class ModelTrainer:
                                 index_list = batch_list["index_list"]
                                 if len(batch["default"]) == 0 or len(index_list) == 0:
                                     continue
-                            batch_output = func(batch, mask=mask)
-
+                            if self.newflag == True:
+                                batch_output = func(batch, mask=mask, new_lr=self.new_lr, new_flag=self.newflag)
+                                self.newflag = False
+                            else:
+                                batch_output = func(batch, mask=mask)
                             # metrics: {'loss': 0.0, 'n_batches': 0}
                             # batch_output: {'bce_loss': tensor(0.3124, device='cuda:0', grad_fn=<DivBackward0>), 'probs': tensor([0.6415, 0.1042, 0.0189, 0.3386], device='cuda:0', grad_fn=<SigmoidBackward0>), 'loss': tensor(0.3124, device='cuda:0', grad_fn=<DivBackward0>), 'soft_loss': tensor(0.2496, device='cuda:0', grad_fn=<MeanBackward0>), 'hard_loss': tensor(0., device='cuda:0'), 'no_change_loss': tensor(0.4224, device='cuda:0', grad_fn=<MeanBackward0>)}
                             # y_field:'label'
@@ -285,7 +292,7 @@ class ModelTrainer:
                                     note_use=True, threshold=kwargs[stage_n]
                                 )
                                 # todo 直接修改无法生效到下一个epoch 且epoch每次不可打乱顺序，不然会失效：已实现方法：self参数存储 缺点是占内存，查找慢  方法1.1：读写文件（解决占内存问题） 方法1.2：参数引用可传递（生成器不好保存改动） 方法1.3：每次重新加载dataloader（费时，随机）
-                                if noteindex in self.notelist and epoch != 0:
+                                if noteindex in self.notelist and epoch != self.initial_epoch:
                                     fir = len(batch_metrics["error_list"])
                                     num = 0
                                     # 记录正确率变化的部分
@@ -294,11 +301,12 @@ class ModelTrainer:
                                         sec = len(batch_metrics["error_list"][i])
                                         if sec != 0:
                                             for index in range(sec):
-                                                if self.correctflag > 0:
-                                                    if noteindex in self.correctlist and index_list[num] in self.correctlist[noteindex]:
-                                                        if batch_metrics["error_list"][i][index] == 1 :
-                                                            self.correct_num = self.correct_num + 1
-                                                        self.all_num = self.all_num + 1
+                                                if self.correctflag > 0 :
+                                                    if self.testvalidate == 1:
+                                                        if noteindex in self.correctlist and index_list[num] in self.correctlist[noteindex]:
+                                                            if batch_metrics["error_list"][i][index] == 1 :
+                                                                self.correct_num = self.correct_num + 1
+                                                            self.all_num = self.all_num + 1
                                                 else:
                                                     if index_list[num] in self.errorlist[noteindex] and batch_metrics["error_list"][i][index] == 1 and (num + 1) not in batch["offset"]:
                                                         if noteindex in self.correctlist:
@@ -307,17 +315,10 @@ class ModelTrainer:
                                                             self.correctlist[noteindex]={}
                                                             self.correctlist[noteindex][index_list[num]] = 1
                                                 self.notelist[noteindex][index_list[num]] = batch_metrics["error_list"][i][index]
+                                                if batch_metrics["error_list"][i][index] == 0:
+                                                    self.errorlist[noteindex][index_list[num]] = 1
+                                                #todo 要不要取消积累机制
                                                 num = num + 1
-                                    if self.correctflag == 0:
-                                        num = 0
-                                        self.errorlist[noteindex] = {}
-                                        for i in range(fir):
-                                            sec = len(batch_metrics["error_list"][i])
-                                            if sec != 0:
-                                                for index in range(sec):
-                                                    if batch_metrics["error_list"][i][index] == 0:
-                                                        self.errorlist[noteindex][index_list[num]] = 1
-                                                    num = num + 1
                                 else:
                                     self.notelist[noteindex] = []
                                     self.errorlist[noteindex] = {}
@@ -388,39 +389,104 @@ class ModelTrainer:
                 for j in range(0, num):
                     stages.append(self.note_list[i])
                 note_num = note_num + num
-        file = open("/home/amax/data/wzx/error_epoch_fo.txt", "a")
-        self.correctflag = 0
-        self.correctlist = {}
+        file = open("/home/amax/data/wzx/error_epoch_new.txt", "a")
+        dev_metrics = self.eval_func(model, epoch=self.initial_epoch)
+        self.lastmodel = self.initial_epoch
         for epoch in range(self.initial_epoch, self.epochs):
             self.reverse = 1
             self.reverse_enable = True
             # 判断epoch所在阶段
             kwargs["note_now"] = stages[epoch % note_num]
+            if self.correctflag == 0 and epoch != self.initial_epoch:
+                if self.newflag == True:
+                    path_to_load = attach_index(self.checkpoint_path, self.lastmodel, "\.pt")
+                    model.load_state_dict(torch.load(path_to_load), False)
+                else:
+                    self.lastmodel = epoch - 1
             # 传递阶段值
             train_metrics = self.do_epoch(
                 model, train_data, mode="train", epoch=epoch, total=total,
                 eval_steps=eval_steps, count_mode=count_mode, **kwargs
             )
-            if len(self.correctlist) > 0:
-                if self.correctflag < 2:
-                    self.correctflag = self.correctflag + 1
-                else:
-                    self.correctflag = 0
+            #todo 位置细节
+            if len(self.correctlist) > 0 and self.correctflag == 0:
+                self.correctflag = 1
             dev_metrics = self.eval_func(model, epoch=epoch + 1)
+            self.all_num = 0
+            self.correct_num = 0
             if self.correctflag == 1:
-                self.all_num = 0
-                self.correct_num = 0
                 self.testvalidate = 1
                 train_metrics = self.do_epoch(
                     model, train_data, mode="validate", epoch=epoch, total=total,
                     eval_steps=eval_steps, count_mode=count_mode, **kwargs
                 )
                 self.testvalidate = 0
-                a = self.correct_num/self.all_num
-                file.write("The number is {:.2f}\n".format(a))
+                if self.all_num == 0:
+                    file.write("The all_num is zero,skip now\n")
+                    del self.correctlist
+                    gc.collect()
+                    self.correctlist = {}
+                    self.correctlist = copy.deepcopy(self.correctlist)
+                    self.correctflag = 0
+                    file.flush()
+                    continue
+                self.correctflag = 2
+                self.lastmero = round(self.correct_num / self.all_num,2)
+                file.write("The number is {:.2f}\n".format(self.lastmero))
                 file.write("The all number is {:.2f}\n".format(self.all_num))
-                file.write("The lr is {:.2f}\n".format(self.new_lr))
                 file.flush()
+            elif self.correctflag == 2:
+                self.testvalidate = 1
+                train_metrics = self.do_epoch(
+                    model, train_data, mode="validate", epoch=epoch, total=total,
+                    eval_steps=eval_steps, count_mode=count_mode, **kwargs
+                )
+                self.testvalidate = 0
+                if self.all_num == 0:
+                    file.write("The all_num is zero,skip now\n")
+                    del self.correctlist
+                    gc.collect()
+                    self.correctlist = {}
+                    self.correctlist = copy.deepcopy(self.correctlist)
+                    self.correctflag = 0
+                    file.flush()
+                    continue
+                self.nowmero = round(self.correct_num / self.all_num,2)
+                ra = random.randint(0, 10) / 10
+                if self.nowmero > self.lastmero:
+                    self.min_lr = self.new_lr
+                    # todo 有波动的情况 要不要退化
+                    if self.max_lr > -1 and self.max_lr > self.new_lr:
+                        if ra <= 0.8:
+                            self.new_lr = self.new_lr + (1 / 2) * (self.max_lr - self.new_lr)
+                        else:
+                            self.new_lr = self.new_lr + 2 * (self.max_lr - self.new_lr)
+                    else:
+                        self.new_lr = self.new_lr * 2
+                    self.newflag = True
+                elif self.nowmero < self.lastmero:
+                    # todo 有波动的情况 要不要退化
+                    self.max_lr = self.new_lr
+                    if self.min_lr > -1 and self.min_lr < self.new_lr:
+                        if ra <= 0.8:
+                            self.new_lr = self.new_lr - (1 / 2) * (self.new_lr - self.min_lr)
+                        else:
+                            self.new_lr = self.new_lr - 2 * (self.new_lr - self.min_lr)
+                    else:
+                        self.new_lr = self.new_lr * (1 / 2)
+                    self.newflag = True
+                else:
+                    #todo 三种情况：过大 过小 正好
+                    self.correctflag = 0
+                del self.correctlist
+                gc.collect()
+                self.correctlist = {}
+                self.correctlist = copy.deepcopy(self.correctlist)
+                self.correctflag = 0
+                file.write("The number is {:.2f}\n".format(self.nowmero))
+                file.write("The all number is {:.2f}\n".format(self.all_num))
+                file.flush()
+
         file.close()
         if dev_data is not None and self.evaluate_after:
             if self.checkpoint_path is not None and not self.save_all_checkpoints:

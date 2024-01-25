@@ -15,7 +15,7 @@ import torch
 from numpyencoder import NumpyEncoder
 
 from utils.data_utils import load_ranking_dataset
-from common.training_fo import get_batch_metrics, ModelTrainer
+from common.training_new import get_batch_metrics, ModelTrainer
 from common.metrics import aggregate_binary_sequence_metrics, display_metrics
 from ranking.metrics import extract_labels, item_score_func, evaluate_predictions
 from ranking.data import prepare_dataset, prepare_dataloader, output_predictions
@@ -61,7 +61,7 @@ argument_parser.add_argument("-e", "--epochs", default=100, type=int)
 argument_parser.add_argument("--initial_epoch", default=0, type=int)
 argument_parser.add_argument("--eval_every_n_steps", dest="eval_steps", default=None, type=int)
 argument_parser.add_argument("-E", "--recall_estimate", default=0.4, type=float)
-argument_parser.add_argument("--lr", default=1e-8, type=float)
+argument_parser.add_argument("--lr", default=1e-5, type=float)
 argument_parser.add_argument("--attention_lr", default=None, type=float)
 argument_parser.add_argument("--clip", default=None, type=float)
 argument_parser.add_argument("--batches_per_update", default=1, type=int)
