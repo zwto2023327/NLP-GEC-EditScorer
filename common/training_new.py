@@ -399,10 +399,15 @@ class ModelTrainer:
             kwargs["note_now"] = stages[epoch % note_num]
             if self.correctflag == 0 and epoch != self.initial_epoch:
                 if self.newflag == True:
+                    if self.lastmodel != self.initial_epoch:
+                        del self.errorlist
+                        gc.collect()
+                        self.errorlist = copy.deepcopy(self.lasterrorlist)
                     path_to_load = attach_index(self.checkpoint_path, self.lastmodel, "\.pt")
                     model.load_state_dict(torch.load(path_to_load), False)
                 else:
                     self.lastmodel = epoch - 1
+                    self.lasterrorlist = copy.deepcopy(self.errorlist)
             # 传递阶段值
             train_metrics = self.do_epoch(
                 model, train_data, mode="train", epoch=epoch, total=total,
@@ -426,7 +431,6 @@ class ModelTrainer:
                     del self.correctlist
                     gc.collect()
                     self.correctlist = {}
-                    self.correctlist = copy.deepcopy(self.correctlist)
                     self.correctflag = 0
                     file.flush()
                     continue
@@ -447,7 +451,6 @@ class ModelTrainer:
                     del self.correctlist
                     gc.collect()
                     self.correctlist = {}
-                    self.correctlist = copy.deepcopy(self.correctlist)
                     self.correctflag = 0
                     file.flush()
                     continue
@@ -481,7 +484,6 @@ class ModelTrainer:
                 del self.correctlist
                 gc.collect()
                 self.correctlist = {}
-                self.correctlist = copy.deepcopy(self.correctlist)
                 self.correctflag = 0
                 file.write("The number is {:.2f}\n".format(self.nowmero))
                 file.write("The all number is {:.2f}\n".format(self.all_num))

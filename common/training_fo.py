@@ -204,7 +204,6 @@ class ModelTrainer:
         self.lastvalacc = 0
         self.reverse = 0
         self.reverse_enable = False
-        self.errorlist = {}
         self.correct_num = 0
         self.all_num = 0
         self.testvalidate = 0
@@ -248,10 +247,6 @@ class ModelTrainer:
                             for i in range(len(batch["indexes"])):
                                 noteindex = noteindex + str(batch["indexes"][i]) + str(batch["start"][i]) + str(
                                     len(batch["label"]))
-                            if (len(batch["default"]) > 1):
-                                a = 1
-                            else:
-                                a = 0
                             if kwargs["note_use"] and (mode == "train" or self.testvalidate == 1) and noteindex in self.notelist:
                                 batch_note = batch.copy()
                                 # 根据不同阶段和权重参数值筛选batch并赋值
@@ -308,20 +303,17 @@ class ModelTrainer:
                                                                 self.correct_num = self.correct_num + 1
                                                             self.all_num = self.all_num + 1
                                                 else:
-                                                    if index_list[num] in self.errorlist[noteindex] and batch_metrics["error_list"][i][index] == 1 and (num + 1) not in batch["offset"]:
+                                                    if self.notelist[noteindex][index_list[num]] == 0 and batch_metrics["error_list"][i][index] == 1 and (num + 1) not in batch["offset"]:
                                                         if noteindex in self.correctlist:
                                                             self.correctlist[noteindex][index_list[num]] = 1
                                                         else:
                                                             self.correctlist[noteindex]={}
                                                             self.correctlist[noteindex][index_list[num]] = 1
                                                 self.notelist[noteindex][index_list[num]] = batch_metrics["error_list"][i][index]
-                                                if batch_metrics["error_list"][i][index] == 0:
-                                                    self.errorlist[noteindex][index_list[num]] = 1
                                                 #todo 要不要取消积累机制
                                                 num = num + 1
                                 else:
                                     self.notelist[noteindex] = []
-                                    self.errorlist[noteindex] = {}
                                     fir = len(batch_metrics["error_list"])
                                     num = 0
                                     for i in range(fir):
@@ -329,8 +321,6 @@ class ModelTrainer:
                                         if sec != 0:
                                             for index in range(sec):
                                                 self.notelist[noteindex].append(batch_metrics["error_list"][i][index])
-                                                if batch_metrics["error_list"][i][index] == 0 :
-                                                    self.errorlist[noteindex][num] = 1
                                                 num = num + 1
                                 if count_mode == "sample":
                                     batch_size = batch_len
@@ -357,7 +347,7 @@ class ModelTrainer:
                         self.eval_func(model, epoch=f"{epoch}_{progress_bar.n}")
         return metrics
     #flag为1表示激励，为0表示惩罚
-    def change_reverse(self, dataloader, flag = 1):
+    '''def change_reverse(self, dataloader, flag = 1):
         for batch in dataloader:
             noteindex = ""
             for i in range(len(batch["indexes"])):
@@ -368,7 +358,7 @@ class ModelTrainer:
                     if flag == 1 and index in self.errorlist[noteindex]:
                         self.errorlist[noteindex][index] = self.errorlist[noteindex][index] * 0.5
                     elif flag == 0 and index in self.errorlist[noteindex]:
-                        self.errorlist[noteindex][index] = self.errorlist[noteindex][index] * 2
+                        self.errorlist[noteindex][index] = self.errorlist[noteindex][index] * 2'''
 
     def train(self, model, train_data, dev_data=None, total=None, dev_total=None, count_mode="sample", **kwargs):
         self.notebook_args = {key: value for key, value in kwargs.items() if key[:5] == "note_"}
@@ -389,26 +379,32 @@ class ModelTrainer:
                 for j in range(0, num):
                     stages.append(self.note_list[i])
                 note_num = note_num + num
-        file = open("/home/amax/data/wzx/error_epoch.txt", "a")
-        dev_metrics = self.eval_func(model, epoch=self.initial_epoch)
-        self.lastmodel = self.initial_epoch
+        file = open("/home/amax/data/wzx/error_epoch_fo.txt", "a")
+        #dev_metrics = self.eval_func(model, epoch=self.initial_epoch)
+        #self.lastmodel = self.initial_epoch
         for epoch in range(self.initial_epoch, self.epochs):
             self.reverse = 1
             self.reverse_enable = True
             # 判断epoch所在阶段
             kwargs["note_now"] = stages[epoch % note_num]
-            if self.correctflag == 0 and epoch != self.initial_epoch:
+            '''if self.correctflag == 0:
                 if self.newflag == True:
+                    del self.notelist
                     path_to_load = attach_index(self.checkpoint_path, self.lastmodel, "\.pt")
                     model.load_state_dict(torch.load(path_to_load), False)
-                else:
-                    self.lastmodel = epoch - 1
+                    gc.collect()
+                    self.notelist = copy.deepcopy(self.lastnotelist)'''
             # 传递阶段值
             train_metrics = self.do_epoch(
                 model, train_data, mode="train", epoch=epoch, total=total,
                 eval_steps=eval_steps, count_mode=count_mode, **kwargs
             )
             #todo 位置细节
+            '''if self.correctflag == 0:
+                if len(self.correctlist) > 0:
+                    self.correctflag = 1
+                else:
+                    self.lastnotelist = copy.deepcopy(self.notelist)'''
             if len(self.correctlist) > 0 and self.correctflag == 0:
                 self.correctflag = 1
             dev_metrics = self.eval_func(model, epoch=epoch + 1)
@@ -429,10 +425,10 @@ class ModelTrainer:
                     self.correctflag = 0
                     file.flush()
                     continue
-                self.correctflag = 2
-                self.lastmero = round(self.correct_num / self.all_num,2)
-                file.write("The number is {:.2f}\n".format(self.lastmero))
-                file.write("The all number is {:.2f}\n".format(self.all_num))
+                self.correctflag = 1#todo
+                self.lastmero = self.correct_num / self.all_num
+                file.write("The number is {:.4f}\n".format(self.lastmero))
+                file.write("The all number is {:.4f}\n".format(self.all_num))
                 file.flush()
             elif self.correctflag == 2:
                 self.testvalidate = 1
@@ -449,9 +445,9 @@ class ModelTrainer:
                     self.correctflag = 0
                     file.flush()
                     continue
-                self.nowmero = round(self.correct_num / self.all_num,2)
+                self.nowmero = self.correct_num / self.all_num
                 ra = random.randint(0, 10) / 10
-                if self.nowmero > self.lastmero:
+                if self.nowmero > self.lastmero + 0.01:
                     self.min_lr = self.new_lr
                     # todo 有波动的情况 要不要退化
                     if self.max_lr > -1 and self.max_lr > self.new_lr:
@@ -462,7 +458,7 @@ class ModelTrainer:
                     else:
                         self.new_lr = self.new_lr * 2
                     self.newflag = True
-                elif self.nowmero < self.lastmero:
+                elif self.nowmero < self.lastmero - 0.01:
                     # todo 有波动的情况 要不要退化
                     self.max_lr = self.new_lr
                     if self.min_lr > -1 and self.min_lr < self.new_lr:
@@ -473,15 +469,16 @@ class ModelTrainer:
                     else:
                         self.new_lr = self.new_lr * (1 / 2)
                     self.newflag = True
-                else:
+                    '''else:
                     #todo 三种情况：过大 过小 正好
-                    self.correctflag = 0
+                    self.lastmodel = epoch
+                    self.lastnotelist = copy.deepcopy(self.notelist)'''
                 del self.correctlist
                 gc.collect()
                 self.correctlist = {}
                 self.correctflag = 0
-                file.write("The number is {:.2f}\n".format(self.nowmero))
-                file.write("The all number is {:.2f}\n".format(self.all_num))
+                file.write("The number is {:.4f}\n".format(self.nowmero))
+                file.write("The all number is {:.4f}\n".format(self.all_num))
                 file.flush()
 
         file.close()
