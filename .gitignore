@@ -4,3 +4,4 @@
 *.xml
 .DS_Store
 .idea/NLP-GEC-EditScorer.iml
+common/checkpoint_26.pt

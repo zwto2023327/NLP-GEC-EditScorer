@@ -303,7 +303,7 @@ class ModelTrainer:
                                                                 self.correct_num = self.correct_num + 1
                                                             self.all_num = self.all_num + 1
                                                 else:
-                                                    if self.notelist[noteindex][index_list[num]] == 0 and batch_metrics["error_list"][i][index] == 1 and (num + 1) not in batch["offset"]:
+                                                    if self.notelist[noteindex][index_list[num]] == 1 and batch_metrics["error_list"][i][index] == 0 and (num + 1) not in batch["offset"]:
                                                         if noteindex in self.correctlist:
                                                             self.correctlist[noteindex][index_list[num]] = 1
                                                         else:
@@ -393,11 +393,14 @@ class ModelTrainer:
                 del self.notelist
                 gc.collect()
                 self.notelist = {}
+                file.write("===================init=======================\n")
+                file.flush()
                 # 传递阶段值
                 train_metrics = self.do_epoch(
                     model, train_data, mode="train", epoch=self.initial_epoch, total=total,
                     eval_steps=eval_steps, count_mode=count_mode, **kwargs
                 )
+
             else:
                 # 传递阶段值
                 train_metrics = self.do_epoch(
@@ -427,13 +430,13 @@ class ModelTrainer:
                     self.correctflag = 0
                     file.flush()
                     continue
-                self.correctflag = 2
+                self.correctflag = 1
                 self.lastmero = self.correct_num / self.all_num
                 self.stagenum = self.lastmero
                 file.write("The epoch is {:.4f}\n".format(epoch))
                 file.write("The number is {:.4f}\n".format(self.lastmero))
-                file.write("The trainacc is {:.1f}\n".format(self.trainacc))
-                file.write("The valacc is {:.1f}\n".format(self.valacc))
+                file.write("The trainacc is {:.3f}\n".format(self.trainacc))
+                file.write("The valacc is {:.3f}\n".format(self.valacc))
                 file.write("The lr is {:.4e}\n".format(self.new_lr))
                 file.write("\n")
                 file.flush()
@@ -497,15 +500,15 @@ class ModelTrainer:
                     self.correctlist = {}
                 file.write("The epoch is {:.4f}\n".format(epoch))
                 file.write("The number is {:.4f}\n".format(self.nowmero))
-                file.write("The trainacc is {:.1f}\n".format(self.trainacc))
-                file.write("The valacc is {:.1f}\n".format(self.valacc))
+                file.write("The trainacc is {:.3f}\n".format(self.trainacc))
+                file.write("The valacc is {:.3f}\n".format(self.valacc))
                 file.write("The lr is {:.4e}\n".format(lr))
                 file.write("\n")
                 file.flush()
             else:
                 file.write("The epoch is {:.4f}\n".format(epoch))
-                file.write("The trainacc is {:.1f}\n".format(self.trainacc))
-                file.write("The valacc is {:.1f}\n".format(self.valacc))
+                file.write("The trainacc is {:.3f}\n".format(self.trainacc))
+                file.write("The valacc is {:.3f}\n".format(self.valacc))
         file.close()
         if dev_data is not None and self.evaluate_after:
             if self.checkpoint_path is not None and not self.save_all_checkpoints:
