@@ -15,7 +15,7 @@ import torch
 from numpyencoder import NumpyEncoder
 
 from utils.data_utils import load_ranking_dataset
-from common.training_two import get_batch_metrics, ModelTrainer
+from common.training_fo_2 import get_batch_metrics, ModelTrainer
 from common.metrics import aggregate_binary_sequence_metrics, display_metrics
 from ranking.metrics import extract_labels, item_score_func, evaluate_predictions
 from ranking.data import prepare_dataset, prepare_dataloader, output_predictions
@@ -35,9 +35,9 @@ argument_parser.add_argument("--language", default=None)
 argument_parser.add_argument("--max_length", default=200, type=int)
 argument_parser.add_argument("-T", "--test_file", default="/home/boot/wzx/VSR/NLP-GEC/NLP-GEC-EditScorer/data/bea_reranking/gector_variants/bea.dev.variants")
 argument_parser.add_argument("-n", "--max_sents", default=None, type=int)
-argument_parser.add_argument("-m", "--model", default="/home/boot/wzx/VSR/NLP-GEC/roberta-base")
-#argument_parser.add_argument("-L", "--load", default=None)
-argument_parser.add_argument("-L", "--load", default="/home/boot/wzx/VSR/NLP-GEC/NLP-GEC-EditScorer/checkpoints/checkpoints/pie_bea-gector/checkpoint_2.pt")
+argument_parser.add_argument("-m", "--model", default="/home/boot/wzx/VSR/NLP-GEC/roberta-large")
+argument_parser.add_argument("-L", "--load", default="/home/boot/wzx/VSR/NLP-GEC/NLP-GEC-EditScorer/checkpoints/checkpoints/clang_large_ft2-gector/checkpoint_2.pt")
+#argument_parser.add_argument("-L", "--load", default="/home/boot/wzx/VSR/NLP-GEC/NLP-GEC-EditScorer/checkpoints/checkpoints/pie_bea-gector/checkpoint_2.pt")
 argument_parser.add_argument("-a", "--attention_layers", default=0, type=int)
 argument_parser.add_argument("-C", "--cross_attention", action="store_true")
 argument_parser.add_argument("-r", "--residual", action="store_true")
@@ -55,14 +55,14 @@ argument_parser.add_argument("-P", "--alpha_pos", default=1.0, type=float)
 argument_parser.add_argument("-S", "--alpha_soft", default=0.0, type=float)
 argument_parser.add_argument("-H", "--alpha_hard", default=0.0, type=float)
 argument_parser.add_argument("-N", "--alpha_no_change", default=0.0, type=float)
-argument_parser.add_argument("-c", "--checkpoint_dir", default="/home/boot/wzx/VSR/NLP-GEC/NLP-GEC-EditScorer/checkpoints_two/")
+argument_parser.add_argument("-c", "--checkpoint_dir", default="/home/boot/wzx/VSR/NLP-GEC/NLP-GEC-EditScorer/checkpoints_fo_2/")
 argument_parser.add_argument("--save_all_checkpoints", action="store_true")
 argument_parser.add_argument("-b", "--batch_size", default=64, type=int)
 argument_parser.add_argument("-e", "--epochs", default=500, type=int)
 argument_parser.add_argument("--initial_epoch", default=0, type=int)
 argument_parser.add_argument("--eval_every_n_steps", dest="eval_steps", default=None, type=int)
 argument_parser.add_argument("-E", "--recall_estimate", default=0.4, type=float)
-argument_parser.add_argument("--lr", default=1e-5, type=float)
+argument_parser.add_argument("--lr", default=5e-7, type=float)
 argument_parser.add_argument("--attention_lr", default=None, type=float)
 argument_parser.add_argument("--clip", default=None, type=float)
 argument_parser.add_argument("--batches_per_update", default=1, type=int)
@@ -96,7 +96,7 @@ OPTIMIZER_KEYS = ["lr", "clip", "scheduler", "warmup", "batches_per_update"]
 if __name__ == "__main__":
     args = argument_parser.parse_args()
     args.alpha_hard = max(args.alpha_hard, args.alpha_soft)
-    os.environ["CUDA_VISIBLE_DEVICES"] = "1"
+    os.environ["CUDA_VISIBLE_DEVICES"] = "3"
     if args.use_origin:
         args.position_mode = "mean"
     dataset_args = {

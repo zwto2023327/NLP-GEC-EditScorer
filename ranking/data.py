@@ -77,7 +77,7 @@ class DatasetPreparer:
                     continue
                 default_index = len(data)
                 new_input_ids, origin_start, origin_end = input_ids[:], 0, 1
-                if self.use_sep_for_default:
+                if self.use_sep_for_default:#todo
                     edit_start, edit_end = len(input_ids) + 1, len(input_ids) + 2
                 else:
                     edit_start, edit_end = 0, 1
@@ -91,9 +91,11 @@ class DatasetPreparer:
                 # that check is expected to be always true, but we prevent bound violation
                 continue
             assert origin_end >= origin_start
+            #编辑类型 添加，删除，替换
+            flag = edit_end - edit_start - origin_end + origin_start
             output_edit = {
-                "input_ids": pair_input_ids, "start": edit_start, "end": edit_end,
-                "origin_start": origin_start, "origin_end": origin_end
+                "input_ids": pair_input_ids, "start": edit_start, "end": edit_end, "words":edit["words"],
+                "origin_start": origin_start, "origin_end": origin_end, "flag": flag, "target": edit["target"]
             }
             if has_answers and "is_correct" in edit:
                 output_edit["label"] = int(edit["is_correct"])

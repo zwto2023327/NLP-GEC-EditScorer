@@ -11,7 +11,6 @@ import copy
 import random
 import gc
 
-
 def attach_index(path, index, suffix=""):
     if re.search(suffix + "$", path):
         prefix, suffix = re.match(f"^(.*)({suffix})$", path).groups()
@@ -35,7 +34,9 @@ def get_batch_metrics(pred_labels, labels, mask=None, ignore_labels=None, metric
                 answer[key] += value
             else:
                 error_list[r] = value
-    return {"answer": answer, "error_list": error_list}
+    if note_use:
+        return {"answer": answer, "error_list": error_list}
+    return answer
 
 
 # 返回结果中包含错误索引list——error_list:1表示正确，0表示错误
@@ -58,7 +59,7 @@ def update_metrics(metrics, batch_output, batch, mask=None,
         for key, value in batch_metrics["answer"].items():
             metrics[key] = metrics.get(key, 0) + value
     else:
-        for key, value in batch_metrics["answer"].items():
+        for key, value in batch_metrics.items():
             metrics[key] = metrics.get(key, 0) + value
     # print(metrics)
     aggregate_func(metrics)
@@ -84,8 +85,7 @@ def replace_index_note(index_map, index_list, elem):
 
 # 根据标签采取不同的数据过滤处理机制和按照比例的随机机制
 # todo 增加reverse机制
-def get_batch_reverse_note(enable, correctlist, notelist, batch_note, note_now, model, correct_n=1, reverse_n=1,
-                           mode="train"):
+def get_batch_reverse_note(enable, correctlist, notelist, batch_note, note_now, model, correct_n=1, reverse_n=1, mode="train"):
     # index_list永远是一维
     index_list = []
     index_map = {}
@@ -118,19 +118,11 @@ def get_batch_reverse_note(enable, correctlist, notelist, batch_note, note_now, 
         index_add = index_add + 1
         index_list.append(index)
     batch_note['input_ids'] = torch.index_select(batch_note['input_ids'], 0, torch.tensor(index_list).to(model.device))
-    batch_note['words'] = [batch_note['words'][i] for i in index_list]
     batch_note['label'] = torch.index_select(batch_note['label'], 0, torch.tensor(index_list).to(model.device))
-    '''for index in reverse_index:
-        if batch_note['label'][index] == 0 and enable:
-            batch_note['label'][index] = 1
-        elif batch_note['label'][index] == 1 and enable:
-            batch_note['label'][index] = 0'''
     batch_note['start'] = [batch_note['start'][i] for i in index_list]
     batch_note['end'] = [batch_note['end'][i] for i in index_list]
     batch_note['origin_start'] = [batch_note['origin_start'][i] for i in index_list]
     batch_note['origin_end'] = [batch_note['origin_end'][i] for i in index_list]
-    batch_note['flag'] = [batch_note['flag'][i] for i in index_list]
-    batch_note['target'] = [batch_note['target'][i] for i in index_list]
     batch_note['default'] = default
     batch_note['reverse_index'] = reverse_index
     batch_note['indexes'] = [batch_note['indexes'][i] for i in default_index]
@@ -171,14 +163,18 @@ def get_batch_note(notelist, batch_note, note_now, model, correct_n=1, mode="tra
         index_add = index_add + 1
         index_list.append(index)
     batch_note['input_ids'] = torch.index_select(batch_note['input_ids'], 0, torch.tensor(index_list).to(model.device))
-    batch_note['words'] = [batch_note['words'][i] for i in index_list]
     batch_note['label'] = torch.index_select(batch_note['label'], 0, torch.tensor(index_list).to(model.device))
+    '''for index in range(len(batch_note['label'])):
+        ra = random.randint(0, 10) / 10
+        if ra <= 0.5:
+            if batch_note['label'][index] == 1:
+                batch_note['label'][index] == 0
+            else:
+                batch_note['label'][index] == 1'''
     batch_note['start'] = [batch_note['start'][i] for i in index_list]
     batch_note['end'] = [batch_note['end'][i] for i in index_list]
     batch_note['origin_start'] = [batch_note['origin_start'][i] for i in index_list]
     batch_note['origin_end'] = [batch_note['origin_end'][i] for i in index_list]
-    batch_note['flag'] = [batch_note['flag'][i] for i in index_list]
-    batch_note['target'] = [batch_note['target'][i] for i in index_list]
     batch_note['default'] = default
     batch_note['indexes'] = [batch_note['indexes'][i] for i in default_index]
     batch_note['hard_pairs'] = replace_index_note(index_map, index_list, batch_note['hard_pairs'])
@@ -195,7 +191,6 @@ class ModelTrainer:
                  eval_steps=None, evaluate_after=False, validate_metric="accuracy", less_is_better=False):
         self.epochs = epochs
         self.initial_epoch = initial_epoch
-        self.initmodelflag = True
         if checkpoint_dir is not None:
             os.makedirs(checkpoint_dir, exist_ok=True)
             self.checkpoint_path = os.path.join(checkpoint_dir, checkpoint_name)
@@ -219,63 +214,15 @@ class ModelTrainer:
         self.correctlist = {}
         self.min_lr = -1
         self.max_lr = -1
-        self.replace_num = 0
-        self.delete_num = 0
-        self.insert_num = 0
-        self.null_num = 0
-        self.replace_correct = 0
-        self.delete_correct = 0
-        self.insert_correct = 0
-        self.null_correct = 0
-        self.correct_replace_num = 0
-        self.correct_delete_num = 0
-        self.correct_insert_num = 0
-        self.correct_replace_correct = 0
-        self.correct_delete_correct = 0
-        self.correct_insert_correct = 0
 
         # todo 多GPU支持 根据note_now操作数据和筛选标签 默认是all
-
     def do_epoch(self, model, dataloader, mode="validate", epoch=0, eval_steps=None,
                  answer_field="labels", y_field="y",
                  extract_func=None, metric_func=None, aggregate_func=None, display_func=None,
                  ncols=200, dynamic_ncols=False, count_mode="batch", total=None,
                  check_field="input_ids", check_dim=1, max_length=512, **kwargs):
         metrics = {"n_batches": 0, "loss": 0.0}
-        self.replace_num = 0
-        self.delete_num = 0
-        self.insert_num = 0
-        self.null_num = 0
-        self.replace_correct = 0
-        self.delete_correct = 0
-        self.insert_correct = 0
-        self.null_correct = 0
-        self.correct_num = 0
-        self.all_num = 0
-        if self.testvalidate == 1:
-            self.correct_replace_num = 0
-            self.correct_delete_num = 0
-            self.correct_insert_num = 0
-            self.correct_replace_correct = 0
-            self.correct_delete_correct = 0
-            self.correct_insert_correct = 0
         func = model.train_on_batch if mode == "train" else model.validate_on_batch
-        if mode == "validate":
-            if self.testvalidate == 1:
-                path_to_load = attach_index(self.txt_path, epoch, "\.txt")
-                if os.path.exists(path_to_load):
-                    os.remove(path_to_load)
-                epochfile = open(path_to_load, "a")
-                path_to_load = attach_index(self.traintxt_path, epoch, "\.txt")
-                if os.path.exists(path_to_load):
-                    os.remove(path_to_load)
-                epochfilet = open(path_to_load, "a")
-            else:
-                path_to_load = attach_index(self.valtxt_path, epoch, "\.txt")
-                if os.path.exists(path_to_load):
-                    os.remove(path_to_load)
-                epochfilet = open(path_to_load, "a")
-
         if count_mode == "batch":
             total = getattr(dataloader, "__len__", None)
         progress_bar = tqdm(total=total, leave=True, ncols=ncols, dynamic_ncols=dynamic_ncols)
@@ -302,8 +249,7 @@ class ModelTrainer:
                             for i in range(len(batch["indexes"])):
                                 noteindex = noteindex + str(batch["indexes"][i]) + str(batch["start"][i]) + str(
                                     len(batch["label"]))
-                            if kwargs["note_use"] and (
-                                    mode == "train" or self.testvalidate == 1) and noteindex in self.notelist:
+                            if kwargs["note_use"] and (mode == "train" or self.testvalidate == 1) and noteindex in self.notelist:
                                 batch_note = batch.copy()
                                 # 根据不同阶段和权重参数值筛选batch并赋值
                                 correct_n = 1
@@ -314,16 +260,15 @@ class ModelTrainer:
                                                                         self.correctlist[noteindex],
                                                                         self.notelist[noteindex], batch_note,
                                                                         kwargs["note_now"], model=model,
-                                                                        correct_n=correct_n, reverse_n=reverse_n,
-                                                                        mode=mode)
+                                                                        correct_n=correct_n, reverse_n=reverse_n,mode=mode)
 
-                                    # self.actreverse[noteindex] = batch_list["batch_note"]["reverse_index"].copy()
+                                    #self.actreverse[noteindex] = batch_list["batch_note"]["reverse_index"].copy()
                                 else:
                                     if kwargs["note_now"] == "all":
                                         correct_n = 1
                                     batch_list = get_batch_note(self.notelist[noteindex], batch_note,
                                                                 kwargs["note_now"], model=model,
-                                                                correct_n=correct_n, mode=mode)
+                                                                correct_n=correct_n,mode=mode)
                                 batch = batch_list["batch_note"]
                                 index_list = batch_list["index_list"]
                                 if len(batch["default"]) == 0 or len(index_list) == 0:
@@ -334,7 +279,7 @@ class ModelTrainer:
                             else:
                                 batch_output = func(batch, mask=mask)
                             # metrics: {'loss': 0.0, 'n_batches': 0}
-                            # batch_output: {'bce_loss': tensor(0.3124, dev     ice='cuda:0', grad_fn=<DivBackward0>), 'probs': tensor([0.6415, 0.1042, 0.0189, 0.3386], device='cuda:0', grad_fn=<SigmoidBackward0>), 'loss': tensor(0.3124, device='cuda:0', grad_fn=<DivBackward0>), 'soft_loss': tensor(0.2496, device='cuda:0', grad_fn=<MeanBackward0>), 'hard_loss': tensor(0., device='cuda:0'), 'no_change_loss': tensor(0.4224, device='cuda:0', grad_fn=<MeanBackward0>)}
+                            # batch_output: {'bce_loss': tensor(0.3124, device='cuda:0', grad_fn=<DivBackward0>), 'probs': tensor([0.6415, 0.1042, 0.0189, 0.3386], device='cuda:0', grad_fn=<SigmoidBackward0>), 'loss': tensor(0.3124, device='cuda:0', grad_fn=<DivBackward0>), 'soft_loss': tensor(0.2496, device='cuda:0', grad_fn=<MeanBackward0>), 'hard_loss': tensor(0., device='cuda:0'), 'no_change_loss': tensor(0.4224, device='cuda:0', grad_fn=<MeanBackward0>)}
                             # y_field:'label'
                             if (kwargs["note_use"] and mode == "train") or self.testvalidate == 1:
                                 stage_n = "note_" + kwargs["note_now"] + "_n"
@@ -344,7 +289,7 @@ class ModelTrainer:
                                     note_use=True, threshold=kwargs[stage_n]
                                 )
                                 # todo 直接修改无法生效到下一个epoch 且epoch每次不可打乱顺序，不然会失效：已实现方法：self参数存储 缺点是占内存，查找慢  方法1.1：读写文件（解决占内存问题） 方法1.2：参数引用可传递（生成器不好保存改动） 方法1.3：每次重新加载dataloader（费时，随机）
-                                if noteindex in self.notelist and self.initmodelflag == False:
+                                if noteindex in self.notelist and epoch != self.initial_epoch:
                                     fir = len(batch_metrics["error_list"])
                                     num = 0
                                     # 记录正确率变化的部分
@@ -353,75 +298,21 @@ class ModelTrainer:
                                         sec = len(batch_metrics["error_list"][i])
                                         if sec != 0:
                                             for index in range(sec):
-                                                if self.notelist[noteindex][index_list[num]] == 0 and \
-                                                        batch_metrics["error_list"][i][index] == 1 and (num + 1) not in \
-                                                        batch["offset"] and self.testvalidate == 1:
-                                                    epochfilet.write("***")
-                                                    epochfilet.write(batch['target'][num])
-                                                if self.correctflag > 0:
+                                                if self.correctflag > 0 :
                                                     if self.testvalidate == 1:
-                                                        ra = random.randint(0, 100) / 100
-                                                        if noteindex in self.correctlist and index_list[num] in \
-                                                                self.correctlist[noteindex] and ra <= 0.05:
-                                                            if batch_metrics["error_list"][i][index] == 1:
+                                                        if noteindex in self.correctlist and index_list[num] in self.correctlist[noteindex]:
+                                                            if batch_metrics["error_list"][i][index] == 1 :
                                                                 self.correct_num = self.correct_num + 1
                                                             self.all_num = self.all_num + 1
-                                                            if (num + 1) not in batch["offset"]:
-                                                                if batch['flag'][num] == 0:
-                                                                    if batch['target'][num] == '':
-                                                                        self.correct_delete_num = self.correct_delete_num + 1
-                                                                        if batch_metrics["error_list"][i][index] == 1:
-                                                                            self.correct_delete_correct = self.correct_delete_correct + 1
-                                                                            if self.notelist[noteindex][
-                                                                                index_list[num]] == 0:
-                                                                                epochfile.write("***delete***")
-                                                                                for word in batch["words"][
-                                                                                    index_list[num]]:
-                                                                                    epochfile.write(word)
-                                                                                    epochfile.write(" ")
-                                                                                epochfile.write("***delete***\n")
-                                                                    else:
-                                                                        self.correct_replace_num = self.correct_replace_num + 1
-                                                                        if batch_metrics["error_list"][i][index] == 1:
-                                                                            self.correct_replace_correct = self.correct_replace_correct + 1
-                                                                            if self.notelist[noteindex][
-                                                                                index_list[num]] == 0:
-                                                                                epochfile.write("***replace***")
-                                                                                for word in batch["words"][
-                                                                                    index_list[num]]:
-                                                                                    epochfile.write(word)
-                                                                                    epochfile.write(" ")
-                                                                                epochfile.write("***replace***\n")
-                                                                if batch['flag'][num] > 0:
-                                                                    self.correct_insert_num = self.correct_insert_num + 1
-                                                                    if batch_metrics["error_list"][i][index] == 1:
-                                                                        self.correct_insert_correct = self.correct_insert_correct + 1
-                                                                        if self.notelist[noteindex][
-                                                                            index_list[num]] == 0:
-                                                                            epochfile.write("***insert***")
-                                                                            for word in batch["words"][index_list[num]]:
-                                                                                epochfile.write(word)
-                                                                                epochfile.write(" ")
-                                                                            epochfile.write("***insert***\n")
-                                                            else:
-                                                                epochfile.write("***default***")
-                                                                for word in batch["words"][index_list[num]]:
-                                                                    epochfile.write(word)
-                                                                    epochfile.write(" ")
-                                                                epochfile.write("***default***\n")
-
                                                 else:
-                                                    if self.notelist[noteindex][index_list[num]] == 0 and \
-                                                            batch_metrics["error_list"][i][index] == 1 and (
-                                                            num + 1) not in batch["offset"]:
+                                                    if self.notelist[noteindex][index_list[num]] == 1 and batch_metrics["error_list"][i][index] == 0 and (num + 1) not in batch["offset"]:
                                                         if noteindex in self.correctlist:
                                                             self.correctlist[noteindex][index_list[num]] = 1
                                                         else:
-                                                            self.correctlist[noteindex] = {}
+                                                            self.correctlist[noteindex]={}
                                                             self.correctlist[noteindex][index_list[num]] = 1
-                                                self.notelist[noteindex][index_list[num]] = \
-                                                batch_metrics["error_list"][i][index]
-                                                # todo 要不要取消积累机制
+                                                self.notelist[noteindex][index_list[num]] = batch_metrics["error_list"][i][index]
+                                                #todo 要不要取消积累机制
                                                 num = num + 1
                                 else:
                                     self.notelist[noteindex] = []
@@ -447,69 +338,7 @@ class ModelTrainer:
                     except ValueError:
                         continue
                 postfix = display_func(metrics)
-                if noteindex not in self.notelist and mode == "validate":
-                    self.notelist[noteindex] = []
-                    fir = len(batch_metrics["error_list"])
-                    num = 0
-                    for i in range(fir):
-                        sec = len(batch_metrics["error_list"][i])
-                        if sec != 0:
-                            for index in range(sec):
-                                self.notelist[noteindex].append(batch_metrics["error_list"][i][index])
-                                num = num + 1
-                # 统计总的词法特征
-                if mode == "validate" or self.testvalidate == 1:
-                    fir = len(batch_metrics["error_list"])
-                    num = 0
-                    for i in range(fir):
-                        sec = len(batch_metrics["error_list"][i])
-                        if sec != 0:
-                            for index in range(sec):
-                                if (num + 1) in batch["offset"]:
-                                    self.null_num = self.null_num + 1
-                                    if batch_metrics["error_list"][i][index] == 1:
-                                        self.null_correct = self.null_correct + 1
-                                    epochfilet.write("***default***")
-                                    for word in batch["words"][num]:
-                                        epochfilet.write(word)
-                                        epochfilet.write(" ")
-                                    epochfilet.write("***default***\n")
-                                else:
-                                    if batch['flag'][num] == 0:
-                                        if batch['target'][num] == '':
-                                            self.delete_num = self.delete_num + 1
-                                            if batch_metrics["error_list"][i][index] == 1:
-                                                self.delete_correct = self.delete_correct + 1
-                                                if self.notelist[noteindex][
-                                                    num] == 0:
-                                                    epochfilet.write("***delete***")
-                                                    for word in batch["words"][num]:
-                                                        epochfilet.write(word)
-                                                        epochfilet.write(" ")
-                                                    epochfilet.write("***delete***\n")
-                                        else:
-                                            self.replace_num = self.replace_num + 1
-                                            if batch_metrics["error_list"][i][index] == 1:
-                                                self.replace_correct = self.replace_correct + 1
-                                                if self.notelist[noteindex][num] == 0:
-                                                    epochfilet.write("***replace***")
-                                                    for word in batch["words"][num]:
-                                                        epochfilet.write(word)
-                                                        epochfilet.write(" ")
-                                                    epochfilet.write("***replace***\n")
-                                    if batch['flag'][num] > 0:
-                                        self.insert_num = self.insert_num + 1
-                                        if batch_metrics["error_list"][i][index] == 1:
-                                            self.insert_correct = self.insert_correct + 1
-                                            if self.notelist[noteindex][
-                                                num] == 0:
-                                                epochfilet.write("***insert***")
-                                                for word in batch["words"][num]:
-                                                    epochfilet.write(word)
-                                                    epochfilet.write(" ")
-                                                epochfilet.write("***insert***\n")
-                                self.notelist[noteindex][num] = batch_metrics["error_list"][i][index]
-                                num = num + 1
+
                 progress_bar.update(batch_size if count_mode == "sample" else 1)
                 postfix["lr"] = f"{model.scheduler.get_last_lr()[0]:.2e}"
                 progress_bar.set_postfix(postfix)
@@ -518,13 +347,8 @@ class ModelTrainer:
                     evaluation_step = progress_bar.n // eval_steps
                     if evaluation_step != prev_evaluation_step:
                         self.eval_func(model, epoch=f"{epoch}_{progress_bar.n}")
-        if mode == "validate":
-            if self.testvalidate == 1:
-                epochfile.flush()
-                epochfilet.flush()
         return metrics
-
-    # flag为1表示激励，为0表示惩罚
+    #flag为1表示激励，为0表示惩罚
     '''def change_reverse(self, dataloader, flag = 1):
         for batch in dataloader:
             noteindex = ""
@@ -557,19 +381,7 @@ class ModelTrainer:
                 for j in range(0, num):
                     stages.append(self.note_list[i])
                 note_num = note_num + num
-        file_path = "/home/boot/wzx/error_epoch_th.txt"
-        if os.path.exists(file_path):
-            os.remove(file_path)
-        file = open(file_path, "a")
-        self.txt_path = "/home/boot/wzx/epoch_txt_th/"
-        self.valtxt_path = "/home/boot/wzx/epoch_val_txt_th/"
-        self.traintxt_path = "/home/boot/wzx/epoch_train_txt_th/"
-        if not os.path.exists(self.txt_path):
-            os.mkdir(self.txt_path)
-        if not os.path.exists(self.valtxt_path):
-            os.mkdir(self.valtxt_path)
-        if not os.path.exists(self.traintxt_path):
-            os.mkdir(self.traintxt_path)
+        file = open("/home/boot/wzx/error_epoch_2.txt", "a")
         dev_metrics = self.eval_func(model, epoch=self.initial_epoch)
         self.initmodel = True
         for epoch in range(self.initial_epoch, self.epochs):
@@ -585,7 +397,6 @@ class ModelTrainer:
                 self.notelist = {}
                 file.write("===================init=======================\n")
                 file.flush()
-                self.initmodelflag = True
                 # 传递阶段值
                 train_metrics = self.do_epoch(
                     model, train_data, mode="train", epoch=self.initial_epoch, total=total,
@@ -598,63 +409,20 @@ class ModelTrainer:
                     model, train_data, mode="train", epoch=epoch, total=total,
                     eval_steps=eval_steps, count_mode=count_mode, **kwargs
                 )
-            self.initmodelflag = False
-            # todo 位置细节
+            #todo 位置细节
             if len(self.correctlist) > 0 and self.correctflag == 0:
                 self.correctflag = 1
             dev_metrics = self.eval_func(model, epoch=epoch + 1)
             self.trainacc = train_metrics["accuracy"]
             self.valacc = dev_metrics["accuracy"]
-            if self.replace_num != 0:
-                self.val_replace = self.replace_correct / self.replace_num
-            else:
-                self.val_replace = 0
-            if self.delete_num != 0:
-                self.val_delete = self.delete_correct / self.delete_num
-            else:
-                self.val_delete = 0
-            if self.insert_num != 0:
-                self.val_insert = self.insert_correct / self.insert_num
-            else:
-                self.val_insert = 0
-            if self.null_num != 0:
-                self.val_null = self.null_correct / self.null_num
-            else:
-                self.val_null = 0
+            self.all_num = 0
+            self.correct_num = 0
             if self.correctflag == 1:
                 self.testvalidate = 1
                 train_metrics = self.do_epoch(
                     model, train_data, mode="validate", epoch=epoch, total=total,
                     eval_steps=eval_steps, count_mode=count_mode, **kwargs
                 )
-                if self.replace_num != 0:
-                    self.train_replace = self.replace_correct / self.replace_num
-                else:
-                    self.train_replace = 0
-                if self.delete_num != 0:
-                    self.train_delete = self.delete_correct / self.delete_num
-                else:
-                    self.train_delete = 0
-                if self.insert_num != 0:
-                    self.train_insert = self.insert_correct / self.insert_num
-                else:
-                    self.train_insert = 0
-                if self.null_num != 0:
-                    self.train_null = self.null_correct / self.null_num
-                else:
-                    self.train_null = 0
-                if self.correct_replace_num != 0:
-                    self.correct_train_replace = self.correct_replace_correct / self.correct_replace_num
-                else:
-                    self.correct_train_replace = 0
-                if self.correct_delete_num != 0:
-                    self.correct_train_delete = self.correct_delete_correct / self.correct_delete_num
-                else:
-                    self.correct_train_delete = 0
-                if self.correct_insert_num != 0:
-                    self.correct_train_insert = self.correct_insert_correct / self.correct_insert_num
-                else:
-                    self.correct_train_insert = 0
                 self.testvalidate = 0
                 if self.all_num == 0:
                     file.write("The all_num is zero,skip now\n")
@@ -664,31 +432,13 @@ class ModelTrainer:
                     self.correctflag = 0
                     file.flush()
                     continue
-                self.correctflag = 1
+                self.correctflag = 2
                 self.lastmero = self.correct_num / self.all_num
                 self.stagenum = self.lastmero
-                file.write("The epoch is {:.1f}\n".format(epoch))
+                file.write("The epoch is {:.4f}\n".format(epoch))
                 file.write("The number is {:.4f}\n".format(self.lastmero))
                 file.write("The trainacc is {:.3f}\n".format(self.trainacc))
                 file.write("The valacc is {:.3f}\n".format(self.valacc))
-                file.write("The replace is {:.3f}\n".format(self.val_replace))
-                file.write("The insert is {:.3f}\n".format(self.val_insert))
-                file.write("The null is {:.3f}\n".format(self.val_null))
-                file.write("The delete is {:.3f}\n".format(self.val_delete))
-                file.write("The train_replace is {:.3f}\n".format(self.train_replace))
-                file.write("The train_insert is {:.3f}\n".format(self.train_insert))
-                file.write("The train_null is {:.3f}\n".format(self.train_null))
-                file.write("The train_delete is {:.3f}\n".format(self.train_delete))
-                file.write("The train_replace_num is {:.3f}\n".format(self.replace_num))
-                file.write("The train_insert_num is {:.3f}\n".format(self.insert_num))
-                file.write("The train_null_num is {:.3f}\n".format(self.null_num))
-                file.write("The train_delete_num is {:.3f}\n".format(self.delete_num))
-                file.write("The correct_replace is {:.3f}\n".format(self.correct_train_replace))
-                file.write("The correct_insert is {:.3f}\n".format(self.correct_train_insert))
-                file.write("The correct_delete is {:.3f}\n".format(self.correct_train_delete))
-                file.write("The correct_replace num is {:.1f}\n".format(self.correct_replace_num))
-                file.write("The correct_insert num is {:.1f}\n".format(self.correct_insert_num))
-                file.write("The correct_delete num is {:.1f}\n".format(self.correct_delete_num))
                 file.write("The lr is {:.4e}\n".format(self.new_lr))
                 file.write("\n")
                 file.flush()
@@ -699,34 +449,6 @@ class ModelTrainer:
                     model, train_data, mode="validate", epoch=epoch, total=total,
                     eval_steps=eval_steps, count_mode=count_mode, **kwargs
                 )
-                if self.replace_num != 0:
-                    self.train_replace = self.replace_correct / self.replace_num
-                else:
-                    self.train_replace = 0
-                if self.delete_num != 0:
-                    self.train_delete = self.delete_correct / self.delete_num
-                else:
-                    self.train_delete = 0
-                if self.insert_num != 0:
-                    self.train_insert = self.insert_correct / self.insert_num
-                else:
-                    self.train_insert = 0
-                if self.null_num != 0:
-                    self.train_null = self.null_correct / self.null_num
-                else:
-                    self.train_null = 0
-                if self.correct_replace_num != 0:
-                    self.correct_train_replace = self.correct_replace_correct / self.correct_replace_num
-                else:
-                    self.correct_train_replace = 0
-                if self.correct_delete_num != 0:
-                    self.correct_train_delete = self.correct_delete_correct / self.correct_delete_num
-                else:
-                    self.correct_train_delete = 0
-                if self.correct_insert_num != 0:
-                    self.correct_train_insert = self.correct_insert_correct / self.correct_insert_num
-                else:
-                    self.correct_train_insert = 0
                 self.testvalidate = 0
                 if self.all_num == 0:
                     file.write("The all_num is zero,skip now\n")
@@ -737,23 +459,8 @@ class ModelTrainer:
                     file.flush()
                     continue
                 self.nowmero = self.correct_num / self.all_num
-                self.renum = 0
-                self.nochangenum = 0
-                self.flagnum = 0  # 0表示上升，1表示下降
-                if self.nowmero > self.lastmero + 0.001:
-                    if self.flagnum == 0:
-                        self.renum = self.renum + 1
-                    else:
-                        self.renum = 0
-                    self.flagnum = 0
-                elif self.nowmero < self.lastmero - 0.001:
-                    if self.flagnum == 1:
-                        self.renum = self.renum + 1
-                    else:
-                        self.renum = 0
-                    self.flagnum = 1
                 if self.initmodel == True:
-                    if (self.nowmero > self.lastmero + 0.005) or (self.renum > 1 and self.nowmero > self.lastmero):
+                    if self.nowmero > self.lastmero + 0.01:
                         self.min_lr = self.new_lr
                         # todo 有波动的情况 要不要退化
                         if self.max_lr > -1 and self.max_lr > self.new_lr:
@@ -761,10 +468,8 @@ class ModelTrainer:
                         else:
                             self.new_lr = self.new_lr * 10
                         self.newflag = True
-                        self.renum = 0
                         self.correctflag = 0
-                        self.nochangenum = 0
-                    elif (self.nowmero < self.lastmero - 0.005) or (self.renum > 1 and self.nowmero < self.lastmero):
+                    elif self.nowmero < self.lastmero - 0.01:
                         # todo 有波动的情况 要不要退化
                         self.max_lr = self.new_lr
                         if self.min_lr > -1 and self.min_lr < self.new_lr:
@@ -772,75 +477,40 @@ class ModelTrainer:
                         else:
                             self.new_lr = self.new_lr * (1 / 10)
                         self.newflag = True
-                        self.renum = 0
                         self.correctflag = 0
-                        self.nochangenum = 0
                     else:
-                        # todo 三种情况：过大 过小 正好
+                        #todo 三种情况：过大 过小 正好
                         self.correctflag = 2
                         self.initmodel = False
-                        self.nochangenum = self.nochangenum + 1
                 else:
-                    if (self.nowmero > self.stagenum + 0.01) or (self.renum > 1 and self.nowmero > self.lastmero):
-                        self.new_lr = self.new_lr * 1.2
+                    if self.nowmero > self.stagenum + 0.02:
+                        self.new_lr = self.new_lr*1.2
                         self.newflag = True
-                        self.renum = 0
                         self.correctflag = 0
-                        self.nochangenum = 0
-                    elif (self.nowmero < self.stagenum - 0.01) or (self.renum > 1 and self.nowmero < self.lastmero):
+                    elif self.nowmero < self.stagenum - 0.02:
                         # todo 有波动的情况 要不要退化
-                        self.new_lr = self.new_lr * 0.8
+                        self.new_lr = self.new_lr*0.8
                         self.newflag = True
-                        self.renum = 0
                         self.correctflag = 0
-                        self.nochangenum = 0
                     else:
-                        # todo 三种情况：过大 过小 正好
+                        #todo 三种情况：过大 过小 正好
                         self.correctflag = 2
-                        self.nochangenum = self.nochangenum + 1
-                if self.nochangenum > 5:
-                    self.new_lr = self.new_lr * 0.9
-                    self.newflag = True
-                    self.renum = 0
-                    self.correctflag = 0
-                    self.nochangenum = 0
-                if self.newflag == True:
-                    del self.correctlist
-                    del self.notelist
-                    gc.collect()
-                    self.initmodelflag = True
-                    self.notelist = {}
-                    self.correctlist = {}
 
-                file.write("The epoch is {:.1f}\n".format(epoch))
+                if self.correctflag == 0:
+                    del self.correctlist
+                    gc.collect()
+                    self.correctlist = {}
+                file.write("The epoch is {:.4f}\n".format(epoch))
                 file.write("The number is {:.4f}\n".format(self.nowmero))
                 file.write("The trainacc is {:.3f}\n".format(self.trainacc))
                 file.write("The valacc is {:.3f}\n".format(self.valacc))
-                file.write("The replace is {:.3f}\n".format(self.val_replace))
-                file.write("The insert is {:.3f}\n".format(self.val_insert))
-                file.write("The null is {:.3f}\n".format(self.val_null))
-                file.write("The delete is {:.3f}\n".format(self.val_delete))
-                file.write("The train_replace is {:.3f}\n".format(self.train_replace))
-                file.write("The train_insert is {:.3f}\n".format(self.train_insert))
-                file.write("The train_null is {:.3f}\n".format(self.train_null))
-                file.write("The train_delete is {:.3f}\n".format(self.train_delete))
-                file.write("The correct_replace is {:.3f}\n".format(self.correct_train_replace))
-                file.write("The correct_insert is {:.3f}\n".format(self.correct_train_insert))
-                file.write("The correct_delete is {:.3f}\n".format(self.correct_train_delete))
-                file.write("The correct_replace num is {:.1f}\n".format(self.correct_replace_num))
-                file.write("The correct_insert num is {:.1f}\n".format(self.correct_insert_num))
-                file.write("The correct_delete num is {:.1f}\n".format(self.correct_delete_num))
-                file.write("The lr is {:.4e}\n".format(self.new_lr))
+                file.write("The lr is {:.4e}\n".format(lr))
                 file.write("\n")
                 file.flush()
             else:
                 file.write("The epoch is {:.4f}\n".format(epoch))
-                file.write("The xtrainacc is {:.3f}\n".format(self.trainacc))
-                file.write("The xvalacc is {:.3f}\n".format(self.valacc))
-                file.write("The xreplace is {:.3f}\n".format(self.val_replace))
-                file.write("The xinsert is {:.3f}\n".format(self.val_insert))
-                file.write("The xnull is {:.3f}\n".format(self.val_null))
-                file.write("The xdelete is {:.3f}\n".format(self.val_delete))
+                file.write("The trainacc is {:.3f}\n".format(self.trainacc))
+                file.write("The valacc is {:.3f}\n".format(self.valacc))
         file.close()
         if dev_data is not None and self.evaluate_after:
             if self.checkpoint_path is not None and not self.save_all_checkpoints:
