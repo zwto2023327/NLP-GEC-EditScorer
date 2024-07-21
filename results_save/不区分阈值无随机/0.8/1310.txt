@@ -1,56 +1,96 @@
-
-train, epoch=1: : 33726it [35:25, 15.87it/s, F=63.2, recall_estimate=31.7, precision=60.2, recall=79.2, accuracy=82.7, F_estimate=51, loss=0.363, lr=1.00e-05]
-validate, epoch=1: : 4504it [01:00, 74.85it/s, F=55, recall_estimate=30.9, precision=51.4, recall=77.2, accuracy=80.6, F_estimate=45.3, loss=0.385, lr=1.00e-05]
-train, epoch=2:  48%|████████████▉              | 16081/33439 [15:59<17:16, 16.75it/s, F=48.6, recall_estimate=23, precision=46.8, recall=57.5, accuracy=78.1, F_estimate=38.8, loss=0.342, lr=1.00e-05]
-validate, epoch=2: : 4504it [01:00, 74.96it/s, F=31.4, recall_estimate=12.1, precision=31.7, recall=30.2, accuracy=74.1, F_estimate=23.9, loss=0.713, lr=1.00e-05]
-train, epoch=3:  21%|█████▎                    | 6856/33439 [06:54<26:48, 16.53it/s, F=59.2, recall_estimate=31.4, precision=55.8, recall=78.4, accuracy=80.4, F_estimate=48.3, loss=0.251, lr=1.00e-05]
-validate, epoch=3: : 4504it [00:59, 75.95it/s, F=37.6, recall_estimate=23.1, precision=34.6, recall=57.6, accuracy=71.7, F_estimate=31.4, loss=0.854, lr=1.00e-05]
-train, epoch=4:   8%|██                         | 2554/33439 [02:41<32:28, 15.85it/s, F=61.5, recall_estimate=30.2, precision=58.8, recall=75.6, accuracy=89.2, F_estimate=49.5, loss=0.15, lr=1.00e-05]
-validate, epoch=4: : 4504it [00:59, 75.54it/s, F=35.4, recall_estimate=9.67, precision=40, recall=24.2, accuracy=77.9, F_estimate=24.6, loss=1.18, lr=1.00e-05]
-train, epoch=5:   2%|▍                             | 554/33439 [00:43<42:46, 12.81it/s, F=86.2, recall_estimate=36, precision=85.3, recall=90, accuracy=95.8, F_estimate=66.9, loss=0.0741, lr=1.00e-05]
-validate, epoch=5: : 4504it [00:59, 75.41it/s, F=29.1, recall_estimate=5.04, precision=43.4, recall=12.6, accuracy=79, F_estimate=17.2, loss=1.79, lr=1.00e-05]
-train, epoch=6: : 33726it [34:59, 16.06it/s, F=72, recall_estimate=35.2, precision=68.8, recall=88, accuracy=88.5, F_estimate=57.8, loss=0.217, lr=1.00e-05]
-validate, epoch=6: : 4504it [00:53, 84.22it/s, F=55.1, recall_estimate=31, precision=51.4, recall=77.5, accuracy=80.9, F_estimate=45.4, loss=0.531, lr=1.00e-05]
-train, epoch=7:  35%|█████████▌                 | 11811/33439 [12:23<22:40, 15.89it/s, F=53.7, recall_estimate=25, precision=51.8, recall=62.5, accuracy=85.5, F_estimate=42.7, loss=0.221, lr=1.00e-05]
-validate, epoch=7: : 4504it [00:53, 84.33it/s, F=46.7, recall_estimate=13.3, precision=52, recall=33.2, accuracy=80.6, F_estimate=32.9, loss=0.852, lr=1.00e-05]
-train, epoch=8:  11%|███                         | 3692/33439 [03:20<26:52, 18.45it/s, F=68.2, recall_estimate=33, precision=65.4, recall=82.4, accuracy=86.6, F_estimate=54.6, loss=0.176, lr=1.00e-05]
-validate, epoch=8: : 4504it [00:52, 85.14it/s, F=49.5, recall_estimate=17.9, precision=50.8, recall=44.8, accuracy=80, F_estimate=37.2, loss=0.985, lr=1.00e-05]
-train, epoch=9:   3%|▊                          | 951/33439 [00:59<33:44, 16.04it/s, F=76.4, recall_estimate=33.8, precision=74.6, recall=84.6, accuracy=92.9, F_estimate=60.1, loss=0.108, lr=1.00e-05]
-validate, epoch=9: : 4504it [00:53, 84.74it/s, F=49.4, recall_estimate=13.2, precision=56.5, recall=32.9, accuracy=80.8, F_estimate=34.1, loss=1.29, lr=1.00e-05]
-train, epoch=10:   0%|                             | 128/33439 [00:16<1:10:31,  7.87it/s, F=93, recall_estimate=34, precision=95.2, recall=85.1, accuracy=95.4, F_estimate=70, loss=0.0988, lr=1.00e-05]
-validate, epoch=10: : 4504it [00:53, 84.89it/s, F=50.2, recall_estimate=15.6, precision=54.1, recall=39.1, accuracy=80.4, F_estimate=36.2, loss=1.23, lr=1.00e-05]
-train, epoch=11: : 33726it [34:16, 16.40it/s, F=77.9, recall_estimate=36.4, precision=75.2, recall=91, accuracy=91.5, F_estimate=62, loss=0.158, lr=1.00e-05]
-validate, epoch=11: : 4504it [00:54, 83.21it/s, F=55.8, recall_estimate=29.7, precision=52.5, recall=74.4, accuracy=81.7, F_estimate=45.5, loss=0.698, lr=1.00e-05]
-train, epoch=12:  29%|███████▏                 | 9563/33439 [10:05<25:12, 15.79it/s, F=61.6, recall_estimate=28.1, precision=59.8, recall=70.1, accuracy=88.6, F_estimate=48.8, loss=0.174, lr=1.00e-05]
-validate, epoch=12: : 4504it [00:54, 83.40it/s, F=51.2, recall_estimate=15.8, precision=55.3, recall=39.6, accuracy=81.4, F_estimate=36.9, loss=0.899, lr=1.00e-05]
-train, epoch=13:   7%|█▋                       | 2285/33439 [02:15<30:46, 16.87it/s, F=77.2, recall_estimate=34.5, precision=75.2, recall=86.3, accuracy=90.6, F_estimate=60.9, loss=0.135, lr=1.00e-05]
-validate, epoch=13: : 4504it [00:52, 85.12it/s, F=52.4, recall_estimate=18.2, precision=54.5, recall=45.4, accuracy=81.1, F_estimate=39, loss=1.11, lr=1.00e-05]
-train, epoch=14:   1%|▎                            | 415/33439 [00:30<40:57, 13.44it/s, F=91.2, recall_estimate=36.1, precision=91.5, recall=90.2, accuracy=96, F_estimate=70, loss=0.0766, lr=1.00e-05]
-validate, epoch=14: : 4504it [00:53, 84.76it/s, F=52.6, recall_estimate=17.3, precision=55.6, recall=43.2, accuracy=81.2, F_estimate=38.5, loss=1.24, lr=1.00e-05]
-train, epoch=15:   0%|                           | 27/33439 [00:10<3:37:42,  2.56it/s, F=88.7, recall_estimate=31.4, precision=91.7, recall=78.6, accuracy=86, F_estimate=66.3, loss=0.266, lr=1.00e-05]
-validate, epoch=15: : 4504it [00:53, 84.61it/s, F=52.1, recall_estimate=17.7, precision=54.6, recall=44.3, accuracy=80.8, F_estimate=38.5, loss=1.24, lr=1.00e-05]
-train, epoch=16: : 33726it [36:13, 15.52it/s, F=82.5, recall_estimate=37.2, precision=80.2, recall=93, accuracy=93.5, F_estimate=65.1, loss=0.122, lr=1.00e-05]
-validate, epoch=16: : 4504it [00:52, 85.01it/s, F=55.5, recall_estimate=29.6, precision=52.2, recall=74.1, accuracy=81.5, F_estimate=45.3, loss=0.723, lr=1.00e-05]
-train, epoch=17:  18%|████▉                      | 6156/33439 [05:25<23:44, 19.15it/s, F=68.9, recall_estimate=31.5, precision=66.8, recall=78.8, accuracy=91, F_estimate=54.6, loss=0.144, lr=1.00e-05]^C
-(editscorer3.8) amax@amax-Super-Server:~/data/wzx/VSR/NLP-GEC/NLP-GEC-EditScorer$ tail -f ./log
-validate, epoch=16: : 4504it [00:52, 85.01it/s, F=55.5, recall_estimate=29.6, precision=52.2, recall=74.1, accuracy=81.5, F_estimate=45.3, loss=0.723, lr=1.00e-05]
-train, epoch=17:  24%|██████▊                      | 7919/33439 [06:57<22:27, 18.95it/s, F=69.5, recall_estimate=31.6, precision=67.5, recall=79, accuracy=91.4, F_estimate=55, loss=0.139, lr=1.00e-05]
-validate, epoch=17: : 4504it [00:52, 85.75it/s, F=51.5, recall_estimate=18.1, precision=53.3, recall=45.4, accuracy=80.7, F_estimate=38.4, loss=0.935, lr=1.00e-05]
-train, epoch=18:   4%|█                        | 1457/33439 [01:23<30:22, 17.55it/s, F=82.1, recall_estimate=35.4, precision=80.7, recall=88.4, accuracy=93.3, F_estimate=64.2, loss=0.111, lr=1.00e-05]
-validate, epoch=18: : 4504it [00:52, 86.26it/s, F=55.9, recall_estimate=21.2, precision=56.6, recall=53.1, accuracy=82.2, F_estimate=42.5, loss=1, lr=1.00e-05]
-train, epoch=19:   1%|▏                           | 189/33439 [00:18<53:56, 10.27it/s, F=84.3, recall_estimate=34.5, precision=83.8, recall=86.4, accuracy=92, F_estimate=65.2, loss=0.106, lr=1.00e-05]
-validate, epoch=19: : 4504it [00:52, 86.51it/s, F=55.4, recall_estimate=17.2, precision=59.7, recall=43, accuracy=82.5, F_estimate=40, loss=1.1, lr=1.00e-05]
-train, epoch=20:   0%|                               | 20/33439 [00:09<4:36:11,  2.02it/s, F=60, recall_estimate=13.3, precision=75, recall=33.3, accuracy=74.3, F_estimate=39, loss=0.309, lr=1.00e-05]
-validate, epoch=20: : 4504it [00:52, 86.10it/s, F=55.4, recall_estimate=17.1, precision=59.8, recall=42.9, accuracy=82.4, F_estimate=39.9, loss=1.12, lr=1.00e-05]
-train, epoch=21: : 33726it [35:20, 15.91it/s, F=85.7, recall_estimate=37.6, precision=83.8, recall=94.1, accuracy=94.8, F_estimate=67.3, loss=0.0986, lr=1.00e-05]
-validate, epoch=21: : 4504it [00:53, 84.75it/s, F=55.5, recall_estimate=29.1, precision=52.4, recall=72.8, accuracy=81.4, F_estimate=45.2, loss=0.751, lr=1.00e-05]
-train, epoch=22:  20%|█████▍                     | 6668/33439 [05:53<23:39, 18.86it/s, F=75.3, recall_estimate=32.6, precision=73.8, recall=81.6, accuracy=92.9, F_estimate=59, loss=0.116, lr=1.00e-05]
-validate, epoch=22: : 4504it [00:52, 85.37it/s, F=55.2, recall_estimate=22.8, precision=54.8, recall=57, accuracy=81.6, F_estimate=42.8, loss=0.9, lr=1.00e-05]
-train, epoch=23:   3%|▊                          | 991/33439 [00:59<32:22, 16.71it/s, F=87.8, recall_estimate=36.1, precision=87.2, recall=90.2, accuracy=94.5, F_estimate=68, loss=0.0838, lr=1.00e-05]
-validate, epoch=23: : 4504it [00:52, 85.50it/s, F=55.6, recall_estimate=21.2, precision=56.3, recall=52.9, accuracy=81.8, F_estimate=42.2, loss=1.09, lr=1.00e-05]
-train, epoch=24:   0%|                            | 96/33439 [00:13<1:20:48,  6.88it/s, F=91.2, recall_estimate=32.2, precision=94.3, recall=80.5, accuracy=90.8, F_estimate=68, loss=0.11, lr=1.00e-05]
-validate, epoch=24: : 4504it [00:52, 85.52it/s, F=55.3, recall_estimate=20.2, precision=56.6, recall=50.6, accuracy=81.7, F_estimate=41.7, loss=1.15, lr=1.00e-05]
-validate, epoch=evaluate: : 4504it [00:52, 85.45it/s, F=55.3, recall_estimate=20.2, precision=56.6, recall=50.6, accuracy=81.7, F_estimate=41.7, loss=1.15, lr=1.00e-05]
-4500it [00:48, 93.32it/s]
-
-/usr/bin/nohup python train.py --loss_by_class --save_all_checkpoints --only_generated -M 768 >./log11 2>&1 &
+ 0.878
+ 0.914
+ 0.931
+ 0.942
+ 0.951
+ 0.957
+ 0.962
+ 0.967
+ 0.969
+ 0.972
+ 0.974
+ 0.976
+ 0.977
+ 0.977
+ 0.978
+ 0.978
+ 0.980
+ 0.982
+ 0.983
+ 0.983
+ 0.985
+ 0.984
+ 0.984
+ 0.985
+ 0.986
+ 0.986
+ 0.987
+ 0.987
+ 0.987
+ 0.988
+ 0.988
+ 0.988
+ 0.988
+ 0.988
+ 0.988
+ 0.989
+ 0.989
+ 0.989
+ 0.989
+ 0.989
+ 0.989
+ 0.989
+ 0.990
+ 0.989
+ 0.990
+ 0.990
+ 0.990
+ 0.990
+ 0.989
+ 0.991
+ 0.990
+ 0.990
+ 0.990
+ 0.990
+ 0.991
+ 0.991
+ 0.991
+ 0.991
+ 0.991
+ 0.991
+ 0.991
+ 0.991
+ 0.991
+ 0.991
+ 0.991
+ 0.991
+ 0.991
+ 0.991
+ 0.991
+ 0.991
+ 0.992
+ 0.991
+ 0.991
+ 0.991
+ 0.991
+ 0.991
+ 0.992
+ 0.992
+ 0.992
+ 0.992
+ 0.992
+ 0.992
+ 0.992
+ 0.992
+ 0.992
+ 0.992
+ 0.992
+ 0.992
+ 0.992
+ 0.992
+ 0.992
+ 0.992
+ 0.992
+ 0.992
+ 0.992
+ 0.992

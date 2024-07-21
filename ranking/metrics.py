@@ -22,10 +22,16 @@ def probs_to_labels(probs, default_index, threshold=0.5):
 def item_score_func(y_true, y_pred, threshold=0.5, from_labels=False, note_use=False):
     TP, FN, FP, correct = 0, 0, 0, 0
     error_list = []
+    TP_list = []
+    FN_list = []
+    FP_list = []
     if not from_labels:
         y_pred = probs_to_labels(y_pred, y_true["default"], threshold)
     for index, (label, pred_label) in enumerate(zip(y_true["label"], y_pred)):
         is_correct = int(label == pred_label)
+        pre_tp = TP
+        pre_fn = FN
+        pre_fp = FP
         if index != y_true["default"]:
             if label == 1:
                 TP, FN = TP+is_correct, FN+(1-is_correct)
@@ -34,13 +40,16 @@ def item_score_func(y_true, y_pred, threshold=0.5, from_labels=False, note_use=F
         correct += is_correct
         # 结果添加正确和不正确的位置
         error_list.append(is_correct)
+        TP_list.append(TP - pre_tp)
+        FN_list.append(FN - pre_fn)
+        FP_list.append(FP - pre_fp)
     all_correct = int(correct == len(y_pred))
     if note_use:
         return {"TP": TP, "FP": FP, "FN": FN, "total": len(y_pred), "correct": correct,
-            "seq_correct": all_correct, "seq_total": 1, "error_list": error_list}
+            "seq_correct": all_correct, "seq_total": 1, "error_list": error_list, "TP_list": TP_list, "FN_list": FN_list, "FP_list": FP_list}
     else:
         return {"TP": TP, "FP": FP, "FN": FN, "total": len(y_pred), "correct": correct,
-                "seq_correct": all_correct, "seq_total": 1, "error_list": error_list}
+                "seq_correct": all_correct, "seq_total": 1, "error_list": error_list, "TP_list": TP_list, "FN_list": FN_list, "FP_list": FP_list}
 
 def evaluate_predictions(predictions, dataset, threshold=0.5, from_labels=True):
     metrics = dict()
@@ -49,7 +58,7 @@ def evaluate_predictions(predictions, dataset, threshold=0.5, from_labels=True):
         y_true = {"label": [x["label"] for x in curr_data["data"]], "default": curr_data["default"]}
         curr_metrics = item_score_func(y_true, curr_answer[label_key], from_labels=from_labels, threshold=threshold)
         for key, value in curr_metrics.items():
-            if key != "error_list":
+            if key != "error_list" and key != "TP_list" and key != "FN_list" and key != "FP_list":
                 metrics[key] = metrics.get(key, 0) + value
         aggregate_binary_sequence_metrics(metrics, alpha=0.5)
     return metrics
