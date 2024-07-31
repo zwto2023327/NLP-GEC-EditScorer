@@ -232,9 +232,12 @@ def prepare_dataset(infiles, model="roberta-base", language="en",
     ).prepare(flat_data, has_answers=has_answers)
     return answer, (flat_data if return_flat else data)
 
-def prepare_dataloader(data, batch_size=1500, device="cuda"):
+def prepare_dataloader(data, batch_size=1500, device="cuda", shuffle=False):
     batch_sampler = BatchIndexesSampler(data, total_batch_size=batch_size)
-    return DataLoader(data, batch_sampler=batch_sampler, collate_fn=BatchCollator(device=device))
+    if shuffle == True:
+        return DataLoader(data, shuffle=shuffle, collate_fn=BatchCollator(device=device))
+    else:
+        return DataLoader(data, shuffle=shuffle, batch_sampler=batch_sampler, collate_fn=BatchCollator(device=device))
 
 
 def output_predictions(predictions, data, file=None):

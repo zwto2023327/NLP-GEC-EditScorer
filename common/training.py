@@ -573,7 +573,7 @@ class ModelTrainer:
             os.mkdir(self.valtxt_path)
         if not os.path.exists(self.traintxt_path):
             os.mkdir(self.traintxt_path)
-        dev_metrics = self.eval_func(model, epoch=self.initial_epoch)
+        #dev_metrics = self.eval_func(model, epoch=self.initial_epoch)
         self.initmodel = True
         for epoch in range(self.initial_epoch, self.epochs):
             self.reverse = 1

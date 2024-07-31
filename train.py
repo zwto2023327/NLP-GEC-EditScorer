@@ -167,7 +167,7 @@ if __name__ == "__main__":
         model.load_state_dict(torch.load(args.load), False)
     torch.manual_seed(args.seed)
     #todo 无需修改数据 多GPU
-    train_dataloader = prepare_dataloader(train_dataset, batch_size=args.batch_size, device=model.device)
+    train_dataloader = prepare_dataloader(train_dataset, shuffle=True, batch_size=args.batch_size, device=model.device)
     dev_dataloader = prepare_dataloader(dev_dataset, batch_size=args.batch_size, device=model.device)
     if args.recall_estimate is not None:
         metrics_to_display = ["recall_estimate", "F_estimate"]
