@@ -361,7 +361,7 @@ class ModelTrainer:
                                             if sec != 0:
                                                 for index in range(sec):
                                                     if self.notelist[noteindex][metric][index_list[num]] == 0 and batch_metrics[metric][i][index] == 1 and (num + 1) not in batch["offset"] and self.testvalidate == 1:
-                                                        epochfilet.write("***")
+                                                        epochfilet.write("***\n")
                                                         epochfilet.write(batch['target'][num])
                                                     if self.correctflag > 0 :
                                                         if self.testvalidate == 1:
@@ -378,7 +378,8 @@ class ModelTrainer:
                                                                                 if batch_metrics[metric][i][index] == 1:
                                                                                     self.correct_delete_correct = self.correct_delete_correct + 1
                                                                                     if self.notelist[noteindex][metric][index_list[num]] == 0:
-                                                                                        epochfile.write("***delete***")
+                                                                                        epochfile.write("***delete***source***" + batch['source'][num] + "***target***"
+                                                                                                        +batch['traget'][num]+"***\n")
                                                                                         for word in batch["words"][index_list[num]]:
                                                                                             epochfile.write(word)
                                                                                             epochfile.write(" ")
@@ -388,7 +389,8 @@ class ModelTrainer:
                                                                                 if batch_metrics[metric][i][index] == 1:
                                                                                     self.correct_replace_correct = self.correct_replace_correct + 1
                                                                                     if self.notelist[noteindex][metric][index_list[num]] == 0:
-                                                                                        epochfile.write("***replace***")
+                                                                                        epochfile.write("***replace***source***" + batch['source'][num] + "***target***"
+                                                                                                        +batch['traget'][num]+"***\n")
                                                                                         for word in batch["words"][index_list[num]]:
                                                                                             epochfile.write(word)
                                                                                             epochfile.write(" ")
@@ -399,17 +401,18 @@ class ModelTrainer:
                                                                                 self.correct_insert_correct = self.correct_insert_correct + 1
                                                                                 if self.notelist[noteindex][metric][
                                                                                     index_list[num]] == 0:
-                                                                                    epochfile.write("***insert***")
+                                                                                    epochfile.write("***insert***source***" + batch['source'][num] + "***target***"
+                                                                                                        +batch['traget'][num]+"***\n")
                                                                                     for word in batch["words"][index_list[num]]:
                                                                                         epochfile.write(word)
                                                                                         epochfile.write(" ")
                                                                                     epochfile.write("***insert***\n")
-                                                                    else:
-                                                                        epochfile.write("***default***")
+                                                                        '''else:
+                                                                        epochfile.write("***default***\n")
                                                                         for word in batch["words"][index_list[num]]:
                                                                             epochfile.write(word)
                                                                             epochfile.write(" ")
-                                                                        epochfile.write("***default***\n")
+                                                                        epochfile.write("***default***\n")'''
 
                                                     else:
                                                         if self.notelist[noteindex][metric][index_list[num]] == 0 and batch_metrics[metric][i][index] == 1 and (num + 1) not in batch["offset"]:
@@ -469,49 +472,42 @@ class ModelTrainer:
                                 sec = len(batch_metrics[metric][i])
                                 if sec != 0:
                                     for index in range(sec):
-                                        if (num + 1) in batch["offset"]:
-                                            self.null_num = self.null_num + 1
-                                            if batch_metrics[metric][i][index] == 1:
-                                                self.null_correct = self.null_correct + 1
-                                            epochfilet.write("***default***")
-                                            for word in batch["words"][num]:
-                                                epochfilet.write(word)
-                                                epochfilet.write(" ")
-                                            epochfilet.write("***default***\n")
-                                        else:
-                                            if batch['flag'][num] == 0:
-                                                if batch['target'][num] == '':
-                                                    self.delete_num = self.delete_num + 1
-                                                    if batch_metrics[metric][i][index] == 1:
-                                                        self.delete_correct = self.delete_correct + 1
-                                                        if self.notelist[noteindex][metric][
-                                                            num] == 0:
-                                                            epochfilet.write("***delete***")
-                                                            for word in batch["words"][num]:
-                                                                epochfilet.write(word)
-                                                                epochfilet.write(" ")
-                                                            epochfilet.write("***delete***\n")
-                                                else:
-                                                    self.replace_num = self.replace_num + 1
-                                                    if batch_metrics[metric][i][index] == 1:
-                                                        self.replace_correct = self.replace_correct + 1
-                                                        if self.notelist[noteindex][metric][num] == 0:
-                                                            epochfilet.write("***replace***")
-                                                            for word in batch["words"][num]:
-                                                                epochfilet.write(word)
-                                                                epochfilet.write(" ")
-                                                            epochfilet.write("***replace***\n")
-                                            if batch['flag'][num] > 0:
-                                                self.insert_num = self.insert_num + 1
+                                        if batch['flag'][num] == 0:
+                                            if batch['target'][num] == '':
+                                                self.delete_num = self.delete_num + 1
                                                 if batch_metrics[metric][i][index] == 1:
-                                                    self.insert_correct = self.insert_correct + 1
+                                                    self.delete_correct = self.delete_correct + 1
                                                     if self.notelist[noteindex][metric][
                                                         num] == 0:
-                                                        epochfilet.write("***insert***")
+                                                        epochfilet.write("***delete***source***" + batch['source'][num] + "***target***"
+                                                                                                        +batch['traget'][num]+"***\n")
                                                         for word in batch["words"][num]:
                                                             epochfilet.write(word)
                                                             epochfilet.write(" ")
-                                                        epochfilet.write("***insert***\n")
+                                                        epochfilet.write("***delete***\n")
+                                            else:
+                                                self.replace_num = self.replace_num + 1
+                                                if batch_metrics[metric][i][index] == 1:
+                                                    self.replace_correct = self.replace_correct + 1
+                                                    if self.notelist[noteindex][metric][num] == 0:
+                                                        epochfilet.write("***replace***source***" + batch['source'][num] + "***target***"
+                                                                                                        +batch['traget'][num]+"***\n")
+                                                        for word in batch["words"][num]:
+                                                            epochfilet.write(word)
+                                                            epochfilet.write(" ")
+                                                        epochfilet.write("***replace***\n")
+                                        if batch['flag'][num] > 0:
+                                            self.insert_num = self.insert_num + 1
+                                            if batch_metrics[metric][i][index] == 1:
+                                                self.insert_correct = self.insert_correct + 1
+                                                if self.notelist[noteindex][metric][
+                                                    num] == 0:
+                                                    epochfilet.write("***insert***source***" + batch['source'][num] + "***target***"
+                                                                                                        +batch['traget'][num]+"***\n")
+                                                    for word in batch["words"][num]:
+                                                        epochfilet.write(word)
+                                                        epochfilet.write(" ")
+                                                    epochfilet.write("***insert***\n")
                                         self.notelist[noteindex][metric][num] = batch_metrics[metric][i][index]
                                         num = num + 1
                 progress_bar.update(batch_size if count_mode == "sample" else 1)

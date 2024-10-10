@@ -95,7 +95,7 @@ class DatasetPreparer:
             flag = edit_end - edit_start - origin_end + origin_start
             output_edit = {
                 "input_ids": pair_input_ids, "start": edit_start, "end": edit_end, "words":edit["words"],
-                "origin_start": origin_start, "origin_end": origin_end, "flag": flag, "target": edit["target"]
+                "origin_start": origin_start, "origin_end": origin_end, "flag": flag, "target": edit["target"], "source":edit["source"]
             }
             if has_answers and "is_correct" in edit:
                 output_edit["label"] = int(edit["is_correct"])
